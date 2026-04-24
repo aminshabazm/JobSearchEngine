@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# Data & logs (keep structure, ignore contents)
+data/*.db
+data/*.db-shm
+data/*.db-wal
+logs/*.log
+logs/*.log.*
+
+# Secrets
+.env
+run_pipeline.bat
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mohammed Shabaz Amin - Resume</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f0f0; }
+
+  .resume {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    max-width: 1000px;
+    margin: 20px auto;
+    box-shadow: 0 0 30px rgba(0,0,0,0.3);
+    min-height: 100vh;
+  }
+
+  /* LEFT SIDEBAR */
+  .sidebar {
+    background: linear-gradient(160deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    color: #fff;
+    padding: 30px 20px;
+  }
+
+  .photo-container {
+    text-align: center;
+    margin-bottom: 25px;
+  }
+
+  .photo-placeholder {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #e94560, #0f3460);
+    margin: 0 auto 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 48px;
+    color: #fff;
+    border: 3px solid #e94560;
+  }
+
+  .sidebar h2 {
+    font-size: 14px;
+    color: #e94560;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin: 20px 0 12px;
+    border-bottom: 1px solid #e94560;
+    padding-bottom: 6px;
+  }
+
+  .contact-item {
+    margin-bottom: 10px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #ccc;
+  }
+
+  .contact-item strong {
+    color: #fff;
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 2px;
+  }
+
+  .education-item {
+    margin-bottom: 12px;
+    font-size: 12px;
+    color: #ccc;
+  }
+
+  .education-item .degree {
+    color: #fff;
+    font-weight: bold;
+    font-size: 13px;
+  }
+
+  .education-item .year {
+    color: #e94560;
+    font-size: 11px;
+    margin-bottom: 2px;
+  }
+
+  /* Skills */
+  .skill-category {
+    margin-bottom: 14px;
+  }
+
+  .skill-category-title {
+    font-size: 11px;
+    color: #e94560;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+    font-weight: bold;
+  }
+
+  .skill-tag {
+    display: inline-block;
+    background: rgba(233, 69, 96, 0.15);
+    border: 1px solid rgba(233, 69, 96, 0.4);
+    color: #ddd;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    margin: 2px 2px 2px 0;
+  }
+
+  .skill-tag.ai {
+    background: rgba(255, 165, 0, 0.15);
+    border-color: rgba(255, 165, 0, 0.5);
+    color: #ffcc80;
+  }
+
+  .lang-item {
+    font-size: 12px;
+    color: #ccc;
+    margin-bottom: 5px;
+  }
+
+  /* RIGHT MAIN CONTENT */
+  .main {
+    background: #fff;
+    padding: 35px 30px;
+  }
+
+  .header {
+    border-bottom: 3px solid #e94560;
+    padding-bottom: 15px;
+    margin-bottom: 25px;
+  }
+
+  .header h1 {
+    font-size: 32px;
+    color: #1a1a2e;
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+
+  .header .title {
+    font-size: 15px;
+    color: #e94560;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-top: 4px;
+    font-weight: 500;
+  }
+
+  .header .tagline {
+    margin-top: 10px;
+    font-size: 13px;
+    color: #555;
+    font-style: italic;
+    line-height: 1.5;
+  }
+
+  /* Badge strip */
+  .badge-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 15px 0 5px;
+  }
+
+  .badge {
+    background: #1a1a2e;
+    color: #fff;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
+  .badge.ai-badge {
+    background: linear-gradient(135deg, #e94560, #c0392b);
+  }
+
+  section { margin-bottom: 25px; }
+
+  section h3 {
+    font-size: 15px;
+    color: #1a1a2e;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    border-left: 4px solid #e94560;
+    padding-left: 10px;
+    margin-bottom: 15px;
+    font-weight: 700;
+  }
+
+  /* Profile bullets */
+  .profile-list {
+    list-style: none;
+    padding: 0;
+  }
+
+  .profile-list li {
+    font-size: 12.5px;
+    color: #444;
+    line-height: 1.7;
+    padding-left: 16px;
+    position: relative;
+    margin-bottom: 5px;
+  }
+
+  .profile-list li::before {
+    content: '▸';
+    color: #e94560;
+    position: absolute;
+    left: 0;
+    font-size: 10px;
+    top: 2px;
+  }
+
+  .profile-list li strong {
+    color: #1a1a2e;
+  }
+
+  /* Timeline */
+  .timeline { position: relative; padding-left: 20px; }
+
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 6px;
+    top: 5px;
+    bottom: 5px;
+    width: 2px;
+    background: linear-gradient(to bottom, #e94560, #1a1a2e);
+  }
+
+  .timeline-item {
+    position: relative;
+    margin-bottom: 22px;
+  }
+
+  .timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -17px;
+    top: 6px;
+    width: 11px;
+    height: 11px;
+    background: #e94560;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 2px #e94560;
+  }
+
+  .timeline-item .job-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .timeline-item .role {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1a1a2e;
+  }
+
+  .timeline-item .company {
+    font-size: 13px;
+    color: #e94560;
+    font-weight: 600;
+  }
+
+  .timeline-item .period {
+    font-size: 11px;
+    background: #1a1a2e;
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+  }
+
+  .timeline-item .client {
+    font-size: 12px;
+    color: #777;
+    margin: 2px 0 6px;
+  }
+
+  .timeline-item ul {
+    list-style: none;
+    padding: 0;
+    margin-top: 6px;
+  }
+
+  .timeline-item ul li {
+    font-size: 12px;
+    color: #555;
+    padding-left: 14px;
+    position: relative;
+    margin-bottom: 3px;
+    line-height: 1.6;
+  }
+
+  .timeline-item ul li::before {
+    content: '•';
+    color: #e94560;
+    position: absolute;
+    left: 0;
+  }
+
+  /* Projects */
+  .project-card {
+    border: 1px solid #e8e8e8;
+    border-left: 4px solid #e94560;
+    border-radius: 6px;
+    padding: 14px 16px;
+    margin-bottom: 14px;
+    background: #fafafa;
+  }
+
+  .project-card.ai-project {
+    border-left-color: #ff6b35;
+    background: linear-gradient(135deg, #fff8f5, #fff);
+  }
+
+  .project-card .proj-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 6px;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .project-card .proj-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1a1a2e;
+  }
+
+  .project-card .proj-badge {
+    font-size: 10px;
+    padding: 3px 9px;
+    border-radius: 12px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
+  .proj-badge.java { background: #e3f2fd; color: #1565c0; }
+  .proj-badge.ai-tag { background: #fff3e0; color: #e65100; }
+
+  .project-card .proj-org {
+    font-size: 12px;
+    color: #e94560;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .project-card .proj-desc {
+    font-size: 12px;
+    color: #555;
+    line-height: 1.6;
+    margin-bottom: 8px;
+  }
+
+  .project-card .tech-stack {
+    font-size: 11px;
+    color: #777;
+  }
+
+  .project-card .tech-stack strong { color: #1a1a2e; }
+
+  .ai-highlight {
+    background: linear-gradient(135deg, #fff3cd, #fff);
+    border: 1px solid #ffc107;
+    border-left: 4px solid #ff6b35;
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin-bottom: 10px;
+    font-size: 12px;
+    color: #444;
+  }
+
+  .ai-highlight strong { color: #e65100; }
+
+  @media print {
+    body { background: none; }
+    .resume { margin: 0; box-shadow: none; max-width: none; }
+  }
+</style>
+</head>
+<body>
+<div class="resume">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="photo-container">
+      <div class="photo-placeholder">MSA</div>
+    </div>
+
+    <h2>Contact</h2>
+    <div class="contact-item">
+      <strong>Phone</strong>+91 7798861341
+    </div>
+    <div class="contact-item">
+      <strong>Personal Email</strong>shabazameenmd@gmail.com
+    </div>
+    <div class="contact-item">
+      <strong>Official Email</strong>mohammed.shabazamin@hcltech.com
+    </div>
+    <div class="contact-item">
+      <strong>HCLTech SAP Code</strong>52319627
+    </div>
+    <div class="contact-item">
+      <strong>Address</strong>IAS Colony, Hyderabad
+    </div>
+
+    <h2>Education</h2>
+    <div class="education-item">
+      <div class="year">2008 – 2012</div>
+      <div class="degree">B.Tech (Computer Science)</div>
+      <div>SCET, Hyderabad</div>
+    </div>
+
+    <h2>Skills</h2>
+
+    <div class="skill-category">
+      <div class="skill-category-title">🤖 AI &amp; GenAI</div>
+      <span class="skill-tag ai">Claude API</span>
+      <span class="skill-tag ai">Prompt Engineering</span>
+      <span class="skill-tag ai">AI Agent Development</span>
+      <span class="skill-tag ai">LLM Integration</span>
+      <span class="skill-tag ai">Agentic Workflows</span>
+      <span class="skill-tag ai">RAG Pipelines</span>
+    </div>
+
+    <div class="skill-category">
+      <div class="skill-category-title">☕ Java &amp; Backend</div>
+      <span class="skill-tag">Core Java 1.8</span>
+      <span class="skill-tag">Spring Boot</span>
+      <span class="skill-tag">Spring MVC</span>
+      <span class="skill-tag">Microservices</span>
+      <span class="skill-tag">Hibernate</span>
+      <span class="skill-tag">JDBC</span>
+      <span class="skill-tag">J2EE / JSP</span>
+    </div>
+
+    <div class="skill-category">
+      <div class="skill-category-title">📡 Messaging &amp; Cloud</div>
+      <span class="skill-tag">Apache Kafka</span>
+      <span class="skill-tag">Kafka Streams</span>
+      <span class="skill-tag">AWS</span>
+    </div>
+
+    <div class="skill-category">
+      <div class="skill-category-title">🗄️ Database &amp; Tools</div>
+      <span class="skill-tag">SQL</span>
+      <span class="skill-tag">Oracle</span>
+      <span class="skill-tag">MS SQL Server</span>
+      <span class="skill-tag">Maven</span>
+      <span class="skill-tag">Eclipse</span>
+    </div>
+
+    <div class="skill-category">
+      <div class="skill-category-title">🏗️ Architecture</div>
+      <span class="skill-tag">Saga Design Pattern</span>
+      <span class="skill-tag">CQRS</span>
+      <span class="skill-tag">Event-Driven</span>
+      <span class="skill-tag">MVC</span>
+      <span class="skill-tag">Singleton</span>
+      <span class="skill-tag">Factory</span>
+    </div>
+
+    <div class="skill-category">
+      <div class="skill-category-title">🌐 Frontend &amp; Other</div>
+      <span class="skill-tag">HTML &amp; CSS</span>
+      <span class="skill-tag">JavaScript</span>
+      <span class="skill-tag">SCRUM</span>
+    </div>
+
+    <h2>Language</h2>
+    <div class="lang-item">English</div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div class="main">
+    <div class="header">
+      <h1>Mohammed Shabaz Amin</h1>
+      <div class="title">Java Backend Developer &nbsp;|&nbsp; AI Agent Engineer</div>
+      <div class="badge-strip">
+        <span class="badge ai-badge">Claude Prompt Engineer</span>
+        <span class="badge ai-badge">AI Agent Developer</span>
+        <span class="badge">10+ Years Experience</span>
+        <span class="badge">Technical Lead @ HCLTech</span>
+      </div>
+      <div class="tagline">
+        A seasoned Java Backend Developer and AI Agent Engineer with 10+ years of experience across
+        enterprise software development and education. Specialises in building intelligent AI-powered
+        workflows using <strong>Claude API</strong>, designing <strong>agentic systems</strong>, and
+        delivering high-performance microservices — turning complex business problems into
+        automated, scalable solutions.
+      </div>
+    </div>
+
+    <!-- PROFILE -->
+    <section>
+      <h3>Profile</h3>
+      <ul class="profile-list">
+        <li>Proficient in <strong>documentation, analysis, design, development, implementation</strong>, and rigorous testing of robust software systems across the full SDLC.</li>
+        <li>Experienced in designing and building <strong>AI Agents using Claude API</strong> (Anthropic) — including multi-step agentic workflows, tool-use patterns, and prompt chaining for HR automation, requisition management, and enterprise use cases.</li>
+        <li>Skilled <strong>Claude Prompt Engineer</strong> — crafting system prompts, few-shot examples, and chain-of-thought instructions to maximise LLM accuracy, reliability, and compliance.</li>
+        <li>Commanding knowledge of <strong>Core Java &amp; Java 8</strong> — OOPs, Collections, Multithreading, and Exception Handling.</li>
+        <li>Proven experience crafting high-performance web applications using <strong>Spring Boot, Hibernate, and Microservices</strong>.</li>
+        <li>Hands-on experience with <strong>Microservices architecture</strong> including Saga Design Pattern, Event-Driven Architecture, and CQRS Design Pattern with Spring Boot &amp; Apache Kafka.</li>
+        <li>Strong aptitude for <strong>SQL queries</strong>, ensuring data integrity and accessibility.</li>
+        <li>Excellent communication, interpersonal, and analytical skills — fostering effective teamwork across cross-functional teams.</li>
+        <li>Proven ability to learn and adapt swiftly to emerging technologies, including <strong>Generative AI and LLM-based solutions</strong>.</li>
+      </ul>
+    </section>
+
+    <!-- EMPLOYMENT -->
+    <section>
+      <h3>Employment History</h3>
+      <div class="timeline">
+
+        <div class="timeline-item">
+          <div class="job-header">
+            <div>
+              <div class="role">Technical Lead</div>
+              <div class="company">HCL Technologies (HCLTech), Hyderabad</div>
+              <div class="client">Client: Verizon Communications Inc</div>
+            </div>
+            <span class="period">March 2025 – Present</span>
+          </div>
+          <ul>
+            <li>Leading development of AI agent-powered automation solutions for incident management and customer analytics.</li>
+            <li>Architected and built <strong>AI agents using Claude API</strong> for HR and operational workflows, reducing manual effort significantly.</li>
+            <li>Integrated monitoring tools and ITSM platforms to improve system reliability and SLA compliance.</li>
+            <li>Designed and implemented <strong>Repeat Call Analyzer</strong> — a data-driven solution to analyse customer call logs and identify root-cause recurring issues.</li>
+          </ul>
+        </div>
+
+        <div class="timeline-item">
+          <div class="job-header">
+            <div>
+              <div class="role">Java Backend Developer</div>
+              <div class="company">Synergiz Global Services Pvt Ltd, Hyderabad</div>
+            </div>
+            <span class="period">Dec 2022 – Aug 2023</span>
+          </div>
+          <ul>
+            <li>Developed <strong>PMIS</strong> (Project Management &amp; Information System) for Mumbai Metro Railway Systems (MRVC).</li>
+            <li>Built SynTrack Engine integrating data from MS Excel, Primavera P6, and Tally into structured dashboards.</li>
+            <li>Worked with JSP, JavaScript, J2EE, Core Java, Spring MVC, Apache Kafka, JDBC, AWS, Kafka Streams.</li>
+          </ul>
+        </div>
+
+        <div class="timeline-item">
+          <div class="job-header">
+            <div>
+              <div class="role">Junior Lecturer</div>
+              <div class="company">AAJC, Nanded</div>
+            </div>
+            <span class="period">Dec 2012 – Sep 2019</span>
+          </div>
+          <ul>
+            <li>Delivered Computer Science curriculum to undergraduate students, building foundational programming and analytical skills.</li>
+          </ul>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- PROJECTS -->
+    <section>
+      <h3>Key Projects</h3>
+
+      <!-- AI Projects -->
+      <div class="ai-highlight">
+        🤖 <strong>AI Agent Projects</strong> — Built intelligent, multi-step AI agents using <strong>Claude API (Anthropic)</strong> with tool-use, prompt chaining, and agentic workflow patterns for real-world enterprise automation.
+      </div>
+
+      <div class="project-card ai-project">
+        <div class="proj-header">
+          <div class="proj-title">HR AI Agent (Arshez AI) — Requisition Automation</div>
+          <span class="proj-badge ai-tag">AI Agent | Claude API</span>
+        </div>
+        <div class="proj-org">HCLTech | Internal AI Initiative</div>
+        <div class="proj-desc">
+          Designed and developed an end-to-end <strong>HR AI agent</strong> named <em>Arshez AI</em> to automate the employee requisition and hiring workflow. The agent intelligently processes requisition requests, validates job descriptions, routes approvals, and communicates status updates — all powered by <strong>Claude API</strong> with custom system prompts and tool-use integration. Reduced requisition cycle time significantly by eliminating manual handoffs.
+        </div>
+        <div class="tech-stack">
+          <strong>Technologies:</strong> Claude API (Anthropic), Prompt Engineering, Agentic Workflows, Tool Use, Spring Boot, Java, REST APIs<br>
+          <strong>Role:</strong> AI Agent Designer &amp; Prompt Engineer
+        </div>
+      </div>
+
+      <div class="project-card ai-project">
+        <div class="proj-header">
+          <div class="proj-title">Incident Management Automation Agent</div>
+          <span class="proj-badge ai-tag">AI Agent | LLM Integration</span>
+        </div>
+        <div class="proj-org">HCLTech | Client: Verizon Communications Inc &nbsp;|&nbsp; March 2025 – Present</div>
+        <div class="proj-desc">
+          Developed AI-powered automation solutions to streamline incident detection, ticket creation, routing, and resolution workflows. Integrated LLM-based classification to automatically triage and route incidents, significantly reducing mean-time-to-resolution (MTTR) and manual escalation effort.
+        </div>
+        <div class="tech-stack">
+          <strong>Technologies:</strong> Spring Boot, Core Java, Apache Kafka, Kafka Streams, AWS, MS SQL Server, ITSM Integration<br>
+          <strong>Role:</strong> Full Stack Java Developer &amp; AI Integration Lead
+        </div>
+      </div>
+
+      <div class="project-card ai-project">
+        <div class="proj-header">
+          <div class="proj-title">Repeat Call Analyzer</div>
+          <span class="proj-badge ai-tag">Data Intelligence</span>
+        </div>
+        <div class="proj-org">HCLTech | Client: Verizon Communications Inc &nbsp;|&nbsp; March 2025 – Present</div>
+        <div class="proj-desc">
+          Built a data-driven solution to analyse customer call logs and identify repeat callers, enabling teams to detect recurring issues and root causes. The system provided actionable insights through reports and dashboards, helping reduce repeat calls and improve customer experience.
+        </div>
+        <div class="tech-stack">
+          <strong>Technologies:</strong> Spring Boot, Core Java, Spring MVC, Apache Kafka, JDBC, AWS, MS SQL Server<br>
+          <strong>Role:</strong> Full Stack Java Developer
+        </div>
+      </div>
+
+      <div class="project-card">
+        <div class="proj-header">
+          <div class="proj-title">PMIS — Project Management &amp; Information System (Mumbai Metro MRVC)</div>
+          <span class="proj-badge java">Java | Enterprise</span>
+        </div>
+        <div class="proj-org">Synergiz Global Services Pvt Ltd &nbsp;|&nbsp; Dec 2022 – Aug 2023</div>
+        <div class="proj-desc">
+          Built SynTrack Engine to ingest data from MS Excel, Primavera P6, and Tally into a structured database, processing and visualising project metrics through real-time dashboards for Mumbai Metro Railway.
+        </div>
+        <div class="tech-stack">
+          <strong>Technologies:</strong> JSP, JavaScript, J2EE, Core Java, Spring MVC, Apache Kafka, JDBC, AWS, Kafka Streams, MS SQL Server<br>
+          <strong>Role:</strong> Full Stack Java Developer
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+</div>
+</body>
+</html>

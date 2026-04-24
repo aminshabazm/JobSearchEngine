@@ -1,0 +1,463 @@
+================================================================================
+  JOB SEARCH ENGINE — PROJECT WORKFLOW & TECHNOLOGY REFERENCE
+  Built for: Mohammed Shabaz Amin | shabazameenmd@gmail.com
+  Date: April 2026
+================================================================================
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  WHAT THIS SYSTEM DOES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  An autonomous job-hunting pipeline that can be triggered on demand (or run
+  daily via Windows Task Scheduler). It finds remote Software Engineering jobs
+  in the USA, scores each one against your resume using Groq AI (free, cloud,
+  <1 second per job), drafts personalised outreach emails for the best matches,
+  and presents everything in a web UI where you review and approve sending.
+
+  Cost: $0/month. You own the data. Email only sends when YOU click Approve.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  FULL TECHNOLOGY STACK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  BACKEND — PYTHON PIPELINE
+  ─────────────────────────
+  Language        : Python 3.11+
+  HTTP Client     : requests 2.31+  — calls the Indeed Scraper API
+  AI / LLM        : groq 0.9+       — Python client for Groq cloud API
+  Web Framework   : FastAPI 0.111+  — REST API that powers the React frontend
+  ASGI Server     : uvicorn 0.29+   — runs FastAPI (development + production)
+  Database        : SQLite 3        — built into Python stdlib, zero setup
+  Email           : smtplib         — Python stdlib, sends via Gmail SMTP SSL
+  Logging         : logging         — Python stdlib, rotating file + console
+  Form Parsing    : python-multipart — required by FastAPI
+
+  AI — GROQ API (CLOUD, FREE)
+  ────────────────────────────
+  Provider        : Groq Cloud — https://console.groq.com
+  Model           : llama-3.3-70b-versatile  (70B params — far better than local)
+  Free tier       : 14,400 requests/day — you use ~80/day (0.5% of limit)
+  Speed           : <1 second per job (vs 15-30 sec with local CPU Ollama)
+  Temperature     : 0.3 for scoring, 0.6 for email drafting
+  Response format : JSON mode (response_format={"type": "json_object"})
+  Use             : Score jobs 1–10 against resume, draft personalised emails
+  Key location    : GROQ_API_KEY env var (run_pipeline.bat / Railway env vars)
+
+  FRONTEND — REACT
+  ────────────────
+  Framework       : React 19.0
+  Bundler         : Vite 4.5        — dev server + production build (Node 16 compat)
+  Language        : JavaScript (JSX)
+  Styling         : Plain inline CSS — no external UI library
+  HTTP            : fetch API       — built into the browser
+  Dev proxy       : Vite proxy      — /api/* → localhost:8000 (no CORS in dev)
+
+  DATA SOURCE — INDEED SCRAPER API
+  ─────────────────────────────────
+  Provider        : Omkar Cloud (chetan@omkar.cloud)
+  Base URL        : https://indeed-scraper.omkar.cloud
+  Free tier       : 5,000 requests / month
+  Auth            : API-Key header
+  Endpoints used  : /indeed/search   — paginated job listings
+                    /indeed/job       — full job description by job_id
+  Daily budget    : ~120 calls/run (4 queries × 2 pages + detail fetches)
+                    ≈ 3,600 calls/month — well within the free tier
+
+  EMAIL DELIVERY — GMAIL SMTP
+  ────────────────────────────
+  Protocol        : SMTP SSL (port 465)
+  Server          : smtp.gmail.com
+  Auth            : Gmail App Password (16-char, no spaces)
+  Account         : shabazameenmd@gmail.com
+  Mode            : User-approved only — no email is ever sent automatically
+
+  STORAGE
+  ───────
+  Database        : SQLite (data/jobs.db)
+  WAL mode        : Enabled — allows reading while pipeline writes
+  Deduplication   : INSERT OR IGNORE on job_id — safe to re-run daily
+
+  DEPLOYMENT OPTIONS
+  ──────────────────
+  Local           : Two terminals (uvicorn + npm run dev) — jobs at localhost:5173
+  Local (prod)    : npm run build, then uvicorn — single server at localhost:8000
+  Railway (cloud) : Push to GitHub → connect to Railway → set env vars → deploy
+                    Dockerfile builds Node + Python, Railway injects $PORT
+                    Access from anywhere via your Railway URL
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  PROJECT FILE STRUCTURE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  JobSearchEngine/
+  │
+  ├── main.py                    Daily pipeline orchestrator
+  │                              Run this to fetch + score + draft emails
+  │
+  ├── run_pipeline.bat           Windows Task Scheduler wrapper
+  │                              Sets environment variables (API keys, Gmail)
+  │                              and calls main.py → logs to logs/scheduler.log
+  │
+  ├── Dockerfile                 Multi-stage Docker build for Railway deployment
+  │                              Installs Node 18 → builds React → runs uvicorn
+  │
+  ├── railway.json               Railway deployment config (healthcheck, restart)
+  │
+  ├── requirements.txt           Python dependencies (pip install -r requirements.txt)
+  ├── .gitignore                 Excludes DB, logs, secrets, node_modules
+  ├── WORKFLOW.txt               ← This file
+  │
+  ├── config/
+  │   └── settings.py            MASTER CONFIG — edit this file to customise:
+  │                              • RESUME_TEXT      (your resume for AI scoring)
+  │                              • SEARCH_QUERIES   (job titles to search)
+  │                              • SCORE_THRESHOLD  (minimum score, default 7)
+  │                              • GROQ_MODEL       (AI model to use)
+  │                              • INDEED_MAX_PAGES (API budget control)
+  │
+  ├── src/
+  │   ├── scraper.py             Calls Indeed Scraper API, filters remote jobs,
+  │   │                          deduplicates across queries, fetches full descriptions
+  │   │
+  │   ├── scorer.py              Sends each job to Groq with your resume.
+  │   │                          Returns: score (1–10), reasoning, key matches/gaps.
+  │   │                          If score >= threshold: also drafts the email.
+  │   │
+  │   ├── storage.py             All SQLite operations (read, write, status updates)
+  │   │                          WAL mode enabled. Idempotent inserts.
+  │   │
+  │   └── mailer.py              Gmail SMTP sender. Tests credentials at startup.
+  │                              Returns bool — never raises, never auto-sends.
+  │
+  ├── api/
+  │   └── main.py                FastAPI REST API
+  │                              GET  /api/jobs       — list jobs (filterable)
+  │                              GET  /api/stats      — counts by status + last run
+  │                              GET  /api/run/status — poll pipeline running state
+  │                              POST /api/run        — trigger pipeline from UI
+  │                              PATCH /api/jobs/{id}/approve  (sends email)
+  │                              PATCH /api/jobs/{id}/skip
+  │                              PATCH /api/jobs/{id}/email    (save draft edits)
+  │                              In production: also serves the built React app
+  │
+  ├── frontend/
+  │   ├── package.json           React 19 + Vite 4 dependencies
+  │   ├── vite.config.js         Proxies /api → localhost:8000 in dev mode
+  │   └── src/
+  │       ├── App.jsx            Main layout: stats bar, filters, split view
+  │       │                      Includes "▶ Run Pipeline" button with polling
+  │       └── components/
+  │           ├── JobTable.jsx   Filterable/sortable jobs list with score badges
+  │           ├── JobDetail.jsx  Full job info, AI reasoning, match/gap tags
+  │           └── EmailPreview.jsx  Edit draft + Approve & Send / Skip buttons
+  │
+  ├── data/
+  │   └── jobs.db                SQLite database (auto-created on first run)
+  │
+  └── logs/
+      ├── pipeline.log           Rotating log from main.py (5 MB × 3 backups)
+      └── scheduler.log          Output from run_pipeline.bat (Task Scheduler)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  DATA FLOW — HOW A JOB MOVES THROUGH THE SYSTEM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  STATUS STATES (stored in jobs.db)
+  ──────────────────────────────────
+  new      → Job fetched from Indeed, not yet scored
+  scored   → (intermediate — Groq gave it a score)
+  pending  → Score >= threshold, email drafted, waiting for your review
+  approved → You clicked Approve in the UI (used if email sending failed)
+  sent     → Email successfully delivered via Gmail SMTP
+  skipped  → You clicked Skip in the UI, or score was below threshold
+  error    → Groq or API error during processing (see error_message column)
+
+  PIPELINE TRIGGER OPTIONS
+  ─────────────────────────
+  1. Click "▶ Run Pipeline" button in the web UI  ← easiest
+  2. Double-click run_pipeline.bat  (also sets up Task Scheduler)
+  3. POST http://localhost:8000/api/run  (direct API call)
+
+  PIPELINE FLOW
+  ──────────────
+
+  [UI button / run_pipeline.bat / Task Scheduler]
+        │
+        ▼
+  api/main.py → POST /api/run
+  Spawns background thread (non-blocking) → returns immediately
+        │
+        ▼
+  main.py: run_pipeline()
+  1. Check Groq API key is set         → abort with clear message if not
+  2. Validate Gmail credentials        → warn only, don't abort
+  3. scraper.py: fetch_all_queries()
+     ├─ Search 4 queries × 2 pages = ~120 API calls
+     ├─ Filter: remote_work_model contains "remote"
+     ├─ Deduplicate by job_id (INSERT OR IGNORE)
+     └─ Fetch full descriptions only for NEW jobs (API budget guard)
+  4. storage.py: insert_jobs()         → new jobs get status = 'new'
+  5. For each new job:
+     ├─ scorer.py: score_job()
+     │   └─ Groq (llama-3.3-70b-versatile): compare job vs RESUME_TEXT
+     │       Returns: {"score": 8, "reasoning": "...", "key_matches": [...]}
+     │       Speed: <1 second per job
+     ├─ If score >= 7:
+     │   ├─ scorer.py: draft_email()
+     │   │   └─ Groq: write personalised 150-200 word outreach email
+     │   └─ status → 'pending'
+     └─ If score < 7: status → 'skipped'
+  6. log_run() → writes stats to run_log table
+  7. Pipeline thread sets last_result = "success"
+
+  UI POLLING WHILE PIPELINE RUNS
+  ────────────────────────────────
+  App.jsx polls GET /api/run/status every 3 seconds
+  → Shows spinner + "Fetching jobs & scoring with Groq AI..."
+  → When running=false: auto-refreshes jobs list and stats
+  → Shows "Pipeline finished — jobs updated!" for 5 seconds
+
+  REVIEW FLOW (you, via browser)
+  ───────────────────────────────
+
+  Open http://localhost:5173  (dev)  OR  http://localhost:8000  (prod build)
+        │
+        ▼
+  App.jsx
+  ├─ Header: "▶ Run Pipeline" button + live stats chips
+  ├─ Filter bar: filter by status, minimum score slider
+  └─ Split layout:
+       Left: JobTable.jsx
+       ├─ Score badge (green ≥8 / yellow 6-7 / red <6)
+       ├─ Title, Company, Location, Status
+       └─ Click row → loads detail on right
+
+       Right: JobDetail.jsx
+       ├─ Job title, company, salary, remote badge
+       ├─ Links: View on Indeed ↗  Apply directly ↗
+       ├─ AI Assessment block:
+       │   Score, reasoning, key matches (green tags), gaps (yellow tags)
+       ├─ Full job description (scrollable)
+       └─ EmailPreview.jsx:
+           ├─ Editable Subject field
+           ├─ Editable Body textarea (pre-filled by AI draft)
+           ├─ Recipient email field (you enter the recruiter's address)
+           └─ Buttons:
+               [Save edits]       → PATCH /api/jobs/{id}/email
+               [Approve & Send]   → PATCH /api/jobs/{id}/approve → Gmail SMTP
+               [Skip]             → PATCH /api/jobs/{id}/skip
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  AI PROMPTS USED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  SCORING PROMPT  (src/scorer.py → _SCORING_PROMPT)
+  ──────────────────────────────────────────────────
+  Input  : Your RESUME_TEXT + job title, company, location, type, description
+  Output : JSON → { score: int(1-10), reasoning: str, key_matches: [], key_gaps: [] }
+  Model  : llama-3.3-70b-versatile  |  temperature: 0.3  |  max_tokens: 600
+  Format : response_format={"type": "json_object"}  (guaranteed valid JSON)
+
+  Scoring scale:
+    1–3  Poor fit   (wrong stack, wrong level, major skill gaps)
+    4–6  Partial    (some overlap, significant gaps)
+    7–8  Good fit   (strong skill overlap, right seniority)
+    9–10 Excellent  (near-perfect match)
+
+  EMAIL DRAFTING PROMPT  (src/scorer.py → _EMAIL_PROMPT)
+  ────────────────────────────────────────────────────────
+  Input  : Your RESUME_TEXT + job title, company, description
+  Output : JSON → { subject: str, body: str }
+  Model  : llama-3.3-70b-versatile  |  temperature: 0.6  |  max_tokens: 600
+
+  Email rules enforced in prompt:
+    • 150–200 words maximum
+    • Opens with something specific to this company/role
+    • Highlights 2–3 resume achievements relevant to THIS job
+    • Ends with a low-pressure call to action
+    • Sounds human, not templated
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  HOW TO RUN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  PREREQUISITE — SET YOUR GROQ API KEY
+  ──────────────────────────────────────
+  1. Go to https://console.groq.com → API Keys → Create API Key
+  2. Copy your key (starts with gsk_...)
+  3. Open run_pipeline.bat and paste it on the line:
+       set GROQ_API_KEY=gsk_your_key_here
+
+  DAILY PIPELINE (automated)
+  ───────────────────────────
+  Double-click run_pipeline.bat
+  OR set up Windows Task Scheduler (daily, 7:00 AM):
+    Action → Start a program → run_pipeline.bat
+    Start in → C:\Users\hp\OneDrive\Desktop\My Projects\JobSearchEngine
+
+  MANUAL PIPELINE RUN (command line)
+  ────────────────────────────────────
+  cd "C:\Users\hp\OneDrive\Desktop\My Projects\JobSearchEngine"
+  set GROQ_API_KEY=gsk_your_key_here
+  set INDEED_API_KEY=ok_5583f7661ecb79a2d01d816548a63cd1
+  set GMAIL_ADDRESS=shabazameenmd@gmail.com
+  set GMAIL_APP_PASSWORD=nwubvyliecvxqcxa
+  python main.py
+
+  TRIGGER PIPELINE FROM THE UI
+  ──────────────────────────────
+  Start the server, open the browser, click "▶ Run Pipeline" in the top bar.
+  The button shows a spinner and polls status automatically until done.
+
+  START THE REVIEW UI — LOCAL DEV (two terminals)
+  ─────────────────────────────────────────────────
+  Terminal 1 — Backend API:
+    cd "C:\Users\hp\OneDrive\Desktop\My Projects\JobSearchEngine"
+    set GROQ_API_KEY=gsk_your_key_here
+    set INDEED_API_KEY=ok_5583f7661ecb79a2d01d816548a63cd1
+    set GMAIL_ADDRESS=shabazameenmd@gmail.com
+    set GMAIL_APP_PASSWORD=nwubvyliecvxqcxa
+    uvicorn api.main:app --reload
+    → Runs at http://localhost:8000
+
+  Terminal 2 — Frontend:
+    cd "C:\Users\hp\OneDrive\Desktop\My Projects\JobSearchEngine\frontend"
+    npm run dev
+    → Runs at http://localhost:5173
+
+  Open browser: http://localhost:5173
+
+  PRODUCTION BUILD (single server, no two terminals)
+  ────────────────────────────────────────────────────
+  cd frontend && npm run build && cd ..
+  uvicorn api.main:app
+  → Open http://localhost:8000 (FastAPI serves the built React app directly)
+
+  RAILWAY CLOUD DEPLOYMENT
+  ─────────────────────────
+  1. Push project to GitHub (ensure .gitignore excludes run_pipeline.bat)
+  2. Go to railway.app → New Project → Deploy from GitHub
+  3. Set environment variables in Railway dashboard:
+       GROQ_API_KEY       = gsk_your_key_here
+       INDEED_API_KEY     = ok_5583f7661ecb79a2d01d816548a63cd1
+       GMAIL_ADDRESS      = shabazameenmd@gmail.com
+       GMAIL_APP_PASSWORD = nwubvyliecvxqcxa
+  4. Railway auto-detects Dockerfile and deploys
+  5. Access your app at the Railway-provided URL (e.g. yourapp.railway.app)
+  6. Click "▶ Run Pipeline" in the UI to fetch jobs on demand
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  CONFIGURATION REFERENCE  (config/settings.py)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Setting             Default                    Purpose
+  ─────────────────── ────────────────────────── ──────────────────────────────────────
+  SCORE_THRESHOLD     7                          Only draft emails for jobs scoring >= this
+  INDEED_MAX_PAGES    2                          Pages per query (2 = ~30 jobs per title)
+  GROQ_MODEL          llama-3.3-70b-versatile    AI model (best free Groq model)
+  SEARCH_QUERIES      4 queries                  Edit to change target job titles
+  REMOTE_KEYWORDS     remote, wfh                Controls what counts as "remote"
+  RESUME_TEXT         Your resume                The AI reads this for every scoring call
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  API KEYS & CREDENTIALS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Groq API
+    Provider  : Groq Cloud — https://console.groq.com
+    Free tier : 14,400 req/day (you use ~80/day)
+    Key format: starts with gsk_
+    Key set in: run_pipeline.bat  (GROQ_API_KEY)
+               Railway env vars  (GROQ_API_KEY)
+    Status    : ** Key needed — go to console.groq.com → API Keys → Create **
+
+  Indeed Scraper API
+    Provider  : Omkar Cloud — https://omkar.cloud/indeed-scraper/
+    Free tier : 5,000 requests/month
+    Key set in: run_pipeline.bat  (INDEED_API_KEY)
+    Status    : Key valid. Scraper may have occasional downtime when Indeed
+                changes their HTML structure (provider fixes within 24–48h).
+
+  Gmail SMTP
+    Account   : shabazameenmd@gmail.com
+    Auth type : App Password (not your regular password)
+    Key set in: run_pipeline.bat  (GMAIL_APP_PASSWORD)
+    Regenerate: Google Account → Security → 2-Step Verification → App Passwords
+    Note      : Remove spaces from the 16-char code before pasting.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  HARDWARE PROFILE (this machine)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  CPU   : AMD Ryzen 3 5300U  (4 cores / 8 threads)
+  RAM   : 7.3 GB
+  GPU   : AMD Radeon Graphics (integrated — not needed, AI runs on Groq cloud)
+  OS    : Windows 11 Home
+  Note  : Groq runs in the cloud — your machine only needs a network connection.
+          A full run of 40 new jobs takes approximately 1–2 minutes total
+          (vs 30–50 minutes with local Ollama on CPU).
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  COST BREAKDOWN (monthly)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Indeed Scraper API  : $0.00  (free tier — 5,000 req/month, using ~3,600)
+  Groq API            : $0.00  (free tier — 14,400 req/day, using ~80/day)
+  Gmail SMTP          : $0.00  (included with Gmail account)
+  FastAPI / uvicorn   : $0.00  (open source)
+  React / Vite        : $0.00  (open source)
+  Railway hosting     : $0.00  (free tier, or ~$5/month for always-on)
+  ─────────────────────────────
+  TOTAL               : $0.00 / month  (or $5 if you want Railway always-on)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  TROUBLESHOOTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  "GROQ_API_KEY not set" / "Groq API error"
+    → Open run_pipeline.bat and add your key:  set GROQ_API_KEY=gsk_...
+    → Get a free key at https://console.groq.com → API Keys → Create API Key
+
+  "Groq rate limit exceeded"
+    → Free tier allows 14,400 req/day — very unlikely to hit this
+    → If it happens, the pipeline retries automatically; or wait 1 hour
+
+  "Gmail authentication failed"
+    → App Password must be exactly 16 characters with no spaces
+    → Go to Google Account → Security → App Passwords to regenerate
+
+  "Indeed API 500 error"
+    → Temporary outage on omkar.cloud's side (they fix within 24–48h)
+    → Your key is valid — just re-run the pipeline the next day
+
+  "Indeed API 401 error"
+    → API key invalid or expired
+    → Get a new key at https://omkar.cloud/indeed-scraper/
+
+  "0 remote jobs found (key valid, no errors)"
+    → Increase INDEED_MAX_PAGES in config/settings.py
+    → Or broaden REMOTE_KEYWORDS to include "hybrid"
+
+  "Pipeline button spins but nothing happens"
+    → Check uvicorn logs in Terminal 1 for errors
+    → Verify GROQ_API_KEY is set in the terminal where uvicorn runs
+
+  "npm run dev fails"
+    → Requires Node.js 16+. Check: node --version
+    → Re-install Node.js from https://nodejs.org
+
+
+================================================================================
+  END OF WORKFLOW DOCUMENT
+================================================================================
