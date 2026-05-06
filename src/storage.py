@@ -49,6 +49,33 @@ CREATE TABLE IF NOT EXISTS jobs (
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
 CREATE INDEX IF NOT EXISTS idx_jobs_score  ON jobs(score DESC);
 
+CREATE TABLE IF NOT EXISTS upwork_queries (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    search_term TEXT NOT NULL,
+    enabled     INTEGER NOT NULL DEFAULT 1,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS upwork_jobs (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id          TEXT UNIQUE NOT NULL,
+    title           TEXT NOT NULL,
+    description     TEXT,
+    apply_url       TEXT,
+    budget          TEXT,
+    posted_at       TEXT,
+    score           INTEGER,
+    score_reasoning TEXT,
+    status          TEXT NOT NULL DEFAULT 'new',
+    error_message   TEXT,
+    search_query    TEXT,
+    is_saved        INTEGER NOT NULL DEFAULT 0,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_upwork_status ON upwork_jobs(status);
+CREATE INDEX IF NOT EXISTS idx_upwork_score  ON upwork_jobs(score DESC);
+
 CREATE TABLE IF NOT EXISTS run_log (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     run_at       TEXT NOT NULL DEFAULT (datetime('now')),
@@ -85,6 +112,7 @@ def initialize_db() -> None:
     from config.settings import SEARCH_QUERIES
     seed_search_queries(SEARCH_QUERIES)
     _seed_portal_settings()
+    _seed_upwork_queries()
 
 
 def insert_jobs(jobs: list[dict]) -> int:
@@ -244,7 +272,7 @@ def delete_job(job_id: str) -> bool:
 
 def clear_all_jobs() -> int:
     with get_connection() as conn:
-        cursor = conn.execute("DELETE FROM jobs")
+        cursor = conn.execute("DELETE FROM jobs WHERE is_saved = 0 OR is_saved IS NULL")
         conn.execute("DELETE FROM run_log")
         return cursor.rowcount
 
@@ -302,3 +330,161 @@ def log_run(stats: dict) -> None:
                VALUES (:jobs_fetched, :jobs_new, :jobs_scored, :jobs_drafted, :errors, :duration_sec)""",
             stats,
         )
+
+
+# ---------------------------------------------------------------------------
+# Upwork-specific storage
+# ---------------------------------------------------------------------------
+
+def insert_upwork_jobs(jobs: list[dict]) -> int:
+    if not jobs:
+        return 0
+    cols = ["job_id", "title", "description", "apply_url", "budget", "posted_at", "search_query"]
+    placeholders = ", ".join(f":{c}" for c in cols)
+    sql = f"INSERT OR IGNORE INTO upwork_jobs ({', '.join(cols)}) VALUES ({placeholders})"
+    rows = [{c: job.get(c) for c in cols} for job in jobs]
+    with get_connection() as conn:
+        cursor = conn.executemany(sql, rows)
+        return cursor.rowcount
+
+
+def get_unscored_upwork_jobs() -> list[sqlite3.Row]:
+    with get_connection() as conn:
+        return conn.execute(
+            "SELECT * FROM upwork_jobs WHERE status = 'new' ORDER BY created_at ASC"
+        ).fetchall()
+
+
+def get_all_upwork_jobs(status: str | None = None, min_score: int = 0) -> list[sqlite3.Row]:
+    with get_connection() as conn:
+        if status:
+            return conn.execute(
+                "SELECT * FROM upwork_jobs WHERE status = ? AND (score IS NULL OR score >= ?) ORDER BY score DESC, created_at DESC",
+                (status, min_score),
+            ).fetchall()
+        return conn.execute(
+            "SELECT * FROM upwork_jobs WHERE (score IS NULL OR score >= ?) ORDER BY score DESC, created_at DESC",
+            (min_score,),
+        ).fetchall()
+
+
+def get_upwork_job(job_id: str) -> sqlite3.Row | None:
+    with get_connection() as conn:
+        return conn.execute(
+            "SELECT * FROM upwork_jobs WHERE job_id = ?", (job_id,)
+        ).fetchone()
+
+
+def update_upwork_job_score(job_id: str, score: int, reasoning: str) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE upwork_jobs SET score = ?, score_reasoning = ?, status = 'scored' WHERE job_id = ?",
+            (score, reasoning, job_id),
+        )
+
+
+def update_upwork_job_status(job_id: str, status: str, **kwargs) -> None:
+    allowed = {"error_message"}
+    extras = {k: v for k, v in kwargs.items() if k in allowed}
+    sets = ", ".join(f"{k} = ?" for k in extras)
+    values = list(extras.values())
+    if sets:
+        sql = f"UPDATE upwork_jobs SET status = ?, {sets} WHERE job_id = ?"
+        values = [status] + values + [job_id]
+    else:
+        sql = "UPDATE upwork_jobs SET status = ? WHERE job_id = ?"
+        values = [status, job_id]
+    with get_connection() as conn:
+        conn.execute(sql, values)
+
+
+def delete_upwork_job(job_id: str) -> bool:
+    with get_connection() as conn:
+        cursor = conn.execute("DELETE FROM upwork_jobs WHERE job_id = ?", (job_id,))
+        return cursor.rowcount > 0
+
+
+def clear_all_upwork_jobs() -> int:
+    with get_connection() as conn:
+        cursor = conn.execute("DELETE FROM upwork_jobs WHERE is_saved = 0 OR is_saved IS NULL")
+        return cursor.rowcount
+
+
+def save_upwork_job(job_id: str, saved: bool) -> bool:
+    with get_connection() as conn:
+        cursor = conn.execute(
+            "UPDATE upwork_jobs SET is_saved = ? WHERE job_id = ?",
+            (1 if saved else 0, job_id),
+        )
+        return cursor.rowcount > 0
+
+
+def get_saved_upwork_jobs() -> list[sqlite3.Row]:
+    with get_connection() as conn:
+        return conn.execute(
+            "SELECT * FROM upwork_jobs WHERE is_saved = 1 ORDER BY score DESC, created_at DESC"
+        ).fetchall()
+
+
+def get_upwork_stats() -> dict:
+    with get_connection() as conn:
+        counts: dict[str, int] = {}
+        for row in conn.execute("SELECT status, COUNT(*) as n FROM upwork_jobs GROUP BY status"):
+            counts[row["status"]] = row["n"]
+        return {"counts": counts, "total": sum(counts.values())}
+
+
+# ---------------------------------------------------------------------------
+# Upwork query management
+# ---------------------------------------------------------------------------
+
+_DEFAULT_UPWORK_QUERIES = [
+    "java backend developer",
+    "spring boot developer",
+    "technical lead java",
+    "java microservices",
+]
+
+
+def _seed_upwork_queries() -> None:
+    with get_connection() as conn:
+        count = conn.execute("SELECT COUNT(*) FROM upwork_queries").fetchone()[0]
+        if count == 0:
+            conn.executemany(
+                "INSERT INTO upwork_queries (search_term) VALUES (?)",
+                [(q,) for q in _DEFAULT_UPWORK_QUERIES],
+            )
+
+
+def get_upwork_queries(enabled_only: bool = False) -> list[sqlite3.Row]:
+    with get_connection() as conn:
+        if enabled_only:
+            return conn.execute(
+                "SELECT * FROM upwork_queries WHERE enabled = 1 ORDER BY id ASC"
+            ).fetchall()
+        return conn.execute("SELECT * FROM upwork_queries ORDER BY id ASC").fetchall()
+
+
+def add_upwork_query(search_term: str) -> sqlite3.Row:
+    with get_connection() as conn:
+        cursor = conn.execute(
+            "INSERT INTO upwork_queries (search_term) VALUES (?)", (search_term.strip(),)
+        )
+        return conn.execute(
+            "SELECT * FROM upwork_queries WHERE id = ?", (cursor.lastrowid,)
+        ).fetchone()
+
+
+def delete_upwork_query(query_id: int) -> bool:
+    with get_connection() as conn:
+        cursor = conn.execute("DELETE FROM upwork_queries WHERE id = ?", (query_id,))
+        return cursor.rowcount > 0
+
+
+def toggle_upwork_query(query_id: int, enabled: bool) -> bool:
+    with get_connection() as conn:
+        cursor = conn.execute(
+            "UPDATE upwork_queries SET enabled = ? WHERE id = ?",
+            (1 if enabled else 0, query_id),
+        )
+        return cursor.rowcount > 0

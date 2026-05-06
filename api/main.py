@@ -11,21 +11,33 @@ from pydantic import BaseModel
 from src.mailer import send_email
 from src.storage import (
     add_search_query,
+    add_upwork_query,
     clear_all_jobs,
+    clear_all_upwork_jobs,
     delete_job,
     delete_search_query,
+    delete_upwork_job,
+    delete_upwork_query,
     get_all_jobs,
+    get_all_upwork_jobs,
     get_job,
     get_portal_settings,
     get_saved_jobs,
+    get_saved_upwork_jobs,
     get_search_queries,
     get_stats,
+    get_upwork_job,
+    get_upwork_queries,
+    get_upwork_stats,
     initialize_db,
     save_job,
+    save_upwork_job,
     toggle_portal,
     toggle_search_query,
+    toggle_upwork_query,
     update_job_email,
     update_job_status,
+    update_upwork_job_status,
 )
 
 app = FastAPI(title="Job Search Engine", version="1.0.0")
@@ -39,13 +51,14 @@ app.add_middleware(
 
 initialize_db()
 
-# --- Pipeline run state ---
+# ---------------------------------------------------------------------------
+# Main pipeline state
+# ---------------------------------------------------------------------------
 _pipeline_lock = threading.Lock()
 _pipeline_state = {"running": False, "started_at": None, "last_result": None, "progress": None}
 
 
 def _run_pipeline_task():
-    global _pipeline_state
     try:
         from main import run_pipeline
         def _progress_cb(current, total, label):
@@ -64,13 +77,43 @@ def _run_pipeline_task():
             _pipeline_state["progress"] = None
 
 
-# --- Helper ---
+# ---------------------------------------------------------------------------
+# Upwork pipeline state (completely separate)
+# ---------------------------------------------------------------------------
+_upwork_lock = threading.Lock()
+_upwork_state = {"running": False, "started_at": None, "last_result": None, "progress": None}
+
+
+def _run_upwork_pipeline_task():
+    try:
+        from main_upwork import run_upwork_pipeline
+        def _progress_cb(current, total, label):
+            with _upwork_lock:
+                _upwork_state["progress"] = {"current": current, "total": total, "label": label}
+        run_upwork_pipeline(progress_cb=_progress_cb)
+        with _upwork_lock:
+            _upwork_state["last_result"] = "success"
+    except Exception as e:
+        with _upwork_lock:
+            _upwork_state["last_result"] = f"error: {e}"
+    finally:
+        with _upwork_lock:
+            _upwork_state["running"] = False
+            _upwork_state["started_at"] = None
+            _upwork_state["progress"] = None
+
+
+# ---------------------------------------------------------------------------
+# Helper
+# ---------------------------------------------------------------------------
 
 def _row_to_dict(row) -> dict:
     return dict(row) if row else {}
 
 
-# --- API Routes ---
+# ---------------------------------------------------------------------------
+# Main pipeline routes
+# ---------------------------------------------------------------------------
 
 @app.get("/api/stats")
 def api_stats():
@@ -160,7 +203,9 @@ def api_skip(job_id: str):
     return {"ok": True}
 
 
-# --- Search query settings ---
+# ---------------------------------------------------------------------------
+# Search query / portal settings
+# ---------------------------------------------------------------------------
 
 class QueryPayload(BaseModel):
     search_term: str
@@ -207,7 +252,9 @@ def api_toggle_query(query_id: int, payload: TogglePayload):
     return {"ok": True}
 
 
-# --- Pipeline trigger ---
+# ---------------------------------------------------------------------------
+# Main pipeline trigger
+# ---------------------------------------------------------------------------
 
 @app.post("/api/run")
 def api_run_pipeline(background_tasks: BackgroundTasks):
@@ -232,7 +279,119 @@ def api_run_status():
         }
 
 
-# --- Serve React frontend in production ---
+# ---------------------------------------------------------------------------
+# Upwork routes
+# ---------------------------------------------------------------------------
+
+@app.get("/api/upwork/stats")
+def api_upwork_stats():
+    return get_upwork_stats()
+
+
+@app.get("/api/upwork/jobs")
+def api_upwork_jobs(status: str | None = None, min_score: int = 0):
+    rows = get_all_upwork_jobs(status=status, min_score=min_score)
+    return [_row_to_dict(r) for r in rows]
+
+
+@app.get("/api/upwork/jobs/saved")
+def api_upwork_saved():
+    return [_row_to_dict(r) for r in get_saved_upwork_jobs()]
+
+
+@app.get("/api/upwork/jobs/{job_id}")
+def api_upwork_job_detail(job_id: str):
+    row = get_upwork_job(job_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return _row_to_dict(row)
+
+
+@app.delete("/api/upwork/jobs")
+def api_upwork_clear():
+    count = clear_all_upwork_jobs()
+    return {"ok": True, "deleted": count}
+
+
+@app.delete("/api/upwork/jobs/{job_id}")
+def api_upwork_delete_job(job_id: str):
+    if not delete_upwork_job(job_id):
+        raise HTTPException(status_code=404, detail="Job not found")
+    return {"ok": True}
+
+
+@app.patch("/api/upwork/jobs/{job_id}/save")
+def api_upwork_save_job(job_id: str):
+    row = get_upwork_job(job_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Job not found")
+    new_saved = not bool(dict(row).get("is_saved", 0))
+    save_upwork_job(job_id, new_saved)
+    return {"ok": True, "is_saved": new_saved}
+
+
+@app.patch("/api/upwork/jobs/{job_id}/skip")
+def api_upwork_skip(job_id: str):
+    row = get_upwork_job(job_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Job not found")
+    update_upwork_job_status(job_id, "skipped")
+    return {"ok": True}
+
+
+@app.get("/api/upwork/queries")
+def api_upwork_get_queries():
+    return [dict(q) for q in get_upwork_queries()]
+
+class UpworkQueryPayload(BaseModel):
+    search_term: str
+
+@app.post("/api/upwork/queries")
+def api_upwork_add_query(payload: UpworkQueryPayload):
+    if not payload.search_term.strip():
+        raise HTTPException(status_code=400, detail="search_term is required")
+    row = add_upwork_query(payload.search_term)
+    return dict(row)
+
+@app.delete("/api/upwork/queries/{query_id}")
+def api_upwork_delete_query(query_id: int):
+    if not delete_upwork_query(query_id):
+        raise HTTPException(status_code=404, detail="Query not found")
+    return {"ok": True}
+
+@app.patch("/api/upwork/queries/{query_id}")
+def api_upwork_toggle_query(query_id: int, payload: TogglePayload):
+    if not toggle_upwork_query(query_id, payload.enabled):
+        raise HTTPException(status_code=404, detail="Query not found")
+    return {"ok": True}
+
+
+@app.post("/api/upwork/run")
+def api_upwork_run(background_tasks: BackgroundTasks):
+    with _upwork_lock:
+        if _upwork_state["running"]:
+            return {"ok": False, "message": "Upwork pipeline is already running"}
+        _upwork_state["running"] = True
+        _upwork_state["started_at"] = datetime.now(timezone.utc).isoformat()
+        _upwork_state["last_result"] = None
+    background_tasks.add_task(_run_upwork_pipeline_task)
+    return {"ok": True, "message": "Upwork pipeline started"}
+
+
+@app.get("/api/upwork/run/status")
+def api_upwork_run_status():
+    with _upwork_lock:
+        return {
+            "running": _upwork_state["running"],
+            "started_at": _upwork_state["started_at"],
+            "last_result": _upwork_state["last_result"],
+            "progress": _upwork_state["progress"],
+        }
+
+
+# ---------------------------------------------------------------------------
+# Serve React frontend in production
+# ---------------------------------------------------------------------------
 
 _DIST = Path(__file__).parent.parent / "frontend" / "dist"
 
