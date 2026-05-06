@@ -6,6 +6,7 @@ import JobTable from "./components/JobTable.jsx";
 import SavedJobs from "./components/SavedJobs.jsx";
 import SettingsPage from "./components/SettingsPage.jsx";
 import UpworkPage from "./components/UpworkPage.jsx";
+import TokenMeter from "./components/TokenMeter.jsx";
 
 const STATUS_COLORS = {
   new: "#64748b", scored: "#64748b", pending: "#f59e0b",
@@ -192,6 +193,9 @@ function AppInner({ onLogout }) {
               )}
             </div>
           )}
+
+          {/* Token meter */}
+          <TokenMeter />
 
           {/* Clear + Run buttons (only relevant for main pipeline views) */}
           {view !== "upwork" && (

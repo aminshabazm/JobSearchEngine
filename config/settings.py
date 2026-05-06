@@ -28,12 +28,18 @@ SEARCH_QUERIES = [
     ("Spring Boot Developer",    "United States"),
 ]
 
-# --- Groq API (free, fast — replaces local Ollama) ---
-# Sign up free at https://console.groq.com → API Keys → Create API Key
-# Free tier: 14,400 requests/day — you need ~80/day (0.5% of limit)
-# Speed: <1 second per job (vs 15-30 sec with local CPU Ollama)
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
-# llama-3.3-70b-versatile = best free model (70B params, way better than local 1B)
+# --- Groq API (free, fast) ---
+# Add keys as Railway environment variables: GROQ_API_KEY, GROQ_API_KEY_2 ... GROQ_API_KEY_6
+# Each key = 100k tokens/day → 6 keys = 600k tokens/day total.
+GROQ_API_KEYS = list(filter(None, [
+    os.environ.get("GROQ_API_KEY", ""),
+    os.environ.get("GROQ_API_KEY_2", ""),
+    os.environ.get("GROQ_API_KEY_3", ""),
+    os.environ.get("GROQ_API_KEY_4", ""),
+    os.environ.get("GROQ_API_KEY_5", ""),
+    os.environ.get("GROQ_API_KEY_6", ""),
+]))
+GROQ_API_KEY = GROQ_API_KEYS[0] if GROQ_API_KEYS else ""  # backward compat
 GROQ_MODEL   = "llama-3.3-70b-versatile"
 
 # Jobs scoring >= this threshold get a drafted email

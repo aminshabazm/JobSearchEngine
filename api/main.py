@@ -163,6 +163,12 @@ def api_stats():
     return get_stats()
 
 
+@app.get("/api/token-usage")
+def api_token_usage():
+    from src.scorer import get_token_stats
+    return get_token_stats()
+
+
 @app.delete("/api/jobs")
 def api_clear_jobs():
     count = clear_all_jobs()

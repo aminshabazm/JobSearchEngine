@@ -1,13 +1,52 @@
 import json
 import logging
 import re
+import threading
 import time
 
 from groq import Groq
 
-from config.settings import GROQ_API_KEY, GROQ_MODEL, RESUME_TEXT, SCORE_THRESHOLD
+from config.settings import GROQ_API_KEYS, GROQ_MODEL, RESUME_TEXT, SCORE_THRESHOLD
 
 logger = logging.getLogger("pipeline")
+
+DAILY_LIMIT = 100_000
+
+# ── Key pool state (module-level, resets on server restart) ──────────────────
+_lock = threading.Lock()
+_current_idx = 0                    # index of the active key
+_token_counts: dict[int, int] = {}  # key_idx → tokens used this session
+_exhausted: dict[int, bool] = {}    # key_idx → True once daily limit hit
+
+
+def _keys() -> list[str]:
+    return [k for k in GROQ_API_KEYS if k]
+
+
+def get_token_stats() -> dict:
+    keys = _keys()
+    with _lock:
+        idx = _current_idx
+        usage = [
+            {
+                "key": i + 1,
+                "tokens_used": _token_counts.get(i, 0),
+                "limit": DAILY_LIMIT,
+                "exhausted": _exhausted.get(i, False),
+                "pct": min(100, round(_token_counts.get(i, 0) / DAILY_LIMIT * 100, 1)),
+            }
+            for i in range(len(keys))
+        ]
+    return {
+        "keys_total": len(keys),
+        "active_key": min(idx + 1, len(keys)),
+        "total_available": len(keys) * DAILY_LIMIT,
+        "total_used": sum(_token_counts.get(i, 0) for i in range(len(keys))),
+        "keys": usage,
+    }
+
+
+# ── Prompts ───────────────────────────────────────────────────────────────────
 
 _SCORING_PROMPT = """You are a job-fit analyst. Evaluate how well this candidate's resume matches the job posting.
 
@@ -53,45 +92,74 @@ Respond ONLY with a valid JSON object:
 {{"subject": "<professional subject line specific to this role>", "body": "<full email body with \\n for line breaks>"}}"""
 
 
+# ── Exceptions ────────────────────────────────────────────────────────────────
+
 class ScorerError(Exception):
     pass
 
 
 class RateLimitError(ScorerError):
-    """Raised when Groq daily token limit is reached — signals the pipeline to stop scoring."""
+    """All Groq keys have hit their daily token limit."""
     pass
 
 
-def _client() -> Groq:
-    if not GROQ_API_KEY:
-        raise ScorerError(
-            "GROQ_API_KEY is not set. "
-            "Get a free key at https://console.groq.com → API Keys → Create API Key, "
-            "then set it in run_pipeline.bat or Railway environment variables."
-        )
-    return Groq(api_key=GROQ_API_KEY)
-
+# ── Core Groq call with key rotation ─────────────────────────────────────────
 
 def _call_groq(prompt: str, temperature: float = 0.3) -> str:
-    try:
-        response = _client().chat.completions.create(
-            model=GROQ_MODEL,
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant. Always respond with valid JSON only."},
-                {"role": "user", "content": prompt},
-            ],
-            response_format={"type": "json_object"},
-            temperature=temperature,
-            max_tokens=600,
-        )
-        time.sleep(1.5)  # stay within per-minute token limits
-        return response.choices[0].message.content
-    except Exception as e:
-        msg = str(e)
-        if "429" in msg and ("tokens per day" in msg or "TPD" in msg):
-            raise RateLimitError("Groq daily token limit (100k/day) reached. Scoring will resume tomorrow.")
-        raise
+    global _current_idx
+    keys = _keys()
+    if not keys:
+        raise ScorerError("No GROQ_API_KEY configured.")
 
+    for _ in range(len(keys)):
+        with _lock:
+            idx = _current_idx
+
+        if idx >= len(keys):
+            break
+
+        try:
+            response = Groq(api_key=keys[idx]).chat.completions.create(
+                model=GROQ_MODEL,
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant. Always respond with valid JSON only."},
+                    {"role": "user", "content": prompt},
+                ],
+                response_format={"type": "json_object"},
+                temperature=temperature,
+                max_tokens=600,
+            )
+            if response.usage:
+                with _lock:
+                    _token_counts[idx] = _token_counts.get(idx, 0) + response.usage.total_tokens
+            time.sleep(1.5)
+            return response.choices[0].message.content
+
+        except Exception as e:
+            msg = str(e)
+            if "429" in msg and ("tokens per day" in msg or "TPD" in msg):
+                with _lock:
+                    _exhausted[idx] = True
+                    _token_counts[idx] = DAILY_LIMIT
+                    if _current_idx == idx:
+                        _current_idx = idx + 1
+                    next_idx = _current_idx
+                if next_idx < len(keys):
+                    logger.info(
+                        "Key %d/%d daily limit reached → rotating to key %d/%d",
+                        idx + 1, len(keys), next_idx + 1, len(keys),
+                    )
+                    continue
+                break
+            raise
+
+    raise RateLimitError(
+        f"All {len(keys)} Groq API keys have reached their 100k/day token limit. "
+        "Scoring will resume tomorrow when the quota resets."
+    )
+
+
+# ── JSON parsing ──────────────────────────────────────────────────────────────
 
 def _parse_json(raw: str, required_keys: list[str]) -> dict:
     text = re.sub(r"```(?:json)?", "", raw).strip().strip("`").strip()
@@ -108,20 +176,24 @@ def _parse_json(raw: str, required_keys: list[str]) -> dict:
     return data
 
 
+# ── Public API ────────────────────────────────────────────────────────────────
+
 def check_groq() -> None:
-    """Raises ScorerError if the Groq API key is missing or invalid."""
-    if not GROQ_API_KEY:
+    keys = _keys()
+    if not keys:
         raise ScorerError(
-            "GROQ_API_KEY is not set.\n"
+            "No GROQ_API_KEY configured.\n"
             "Get a free key at https://console.groq.com → API Keys → Create API Key\n"
-            "Then add it to run_pipeline.bat:  set GROQ_API_KEY=gsk_xxxxxxxxxxxx\n"
-            "Or set it as a Railway environment variable for cloud deployment."
+            "Then add it as a Railway environment variable."
         )
-    # Quick validation — list models to confirm key works
-    try:
-        _client().models.list()
-    except Exception as e:
-        raise ScorerError(f"Groq API key invalid or unreachable: {e}")
+    last_err = None
+    for key in keys:
+        try:
+            Groq(api_key=key).models.list()
+            return
+        except Exception as e:
+            last_err = e
+    raise ScorerError(f"All Groq API keys are invalid or unreachable: {last_err}")
 
 
 def score_job(job: dict) -> tuple[int, str]:
@@ -141,7 +213,7 @@ def score_job(job: dict) -> tuple[int, str]:
             score = max(1, min(10, int(data["score"])))
             return score, data.get("reasoning", "")
         except RateLimitError:
-            raise  # never retry on daily limit — propagate immediately
+            raise
         except ScorerError as e:
             if attempt == 0:
                 logger.warning("Score parse failed (attempt 1), retrying: %s", e)
