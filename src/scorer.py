@@ -6,23 +6,18 @@ import time
 
 from groq import Groq
 
-from config.settings import GEMINI_API_KEY, GROQ_API_KEYS, GROQ_MODEL, RESUME_TEXT, SCORE_THRESHOLD
+from config.settings import GROQ_API_KEYS, GROQ_MODEL, RESUME_TEXT, SCORE_THRESHOLD
 
 logger = logging.getLogger("pipeline")
 
 DAILY_LIMIT = 100_000
-GEMINI_MODEL = "gemini-1.5-flash"
 
-# ── Groq key pool state ───────────────────────────────────────────────────────
+# ── Key pool state ────────────────────────────────────────────────────────────
 _lock = threading.Lock()
 _current_idx = 0
 _token_counts: dict[int, int] = {}
 _exhausted: dict[int, bool] = {}
 _db_loaded = False
-
-# ── Gemini state ──────────────────────────────────────────────────────────────
-_gemini_tokens = 0
-_gemini_errors = 0
 
 
 def _ensure_db_loaded() -> None:
@@ -62,7 +57,6 @@ def get_token_stats() -> dict:
         idx = _current_idx
         usage = []
         for i in range(len(keys)):
-            # DB is authoritative; in-memory may be higher if 429 inflated it
             tokens_used = max(db_counts.get(i, 0), _token_counts.get(i, 0))
             usage.append({
                 "key": i + 1,
@@ -71,18 +65,12 @@ def get_token_stats() -> dict:
                 "exhausted": _exhausted.get(i, False),
                 "pct": min(100, round(tokens_used / DAILY_LIMIT * 100, 1)),
             })
-    groq_all_exhausted = len(keys) > 0 and all(u["exhausted"] for u in usage)
-    with _lock:
-        gemini_tok = _gemini_tokens
     return {
         "keys_total": len(keys),
         "active_key": min(idx + 1, len(keys)),
         "total_available": len(keys) * DAILY_LIMIT,
         "total_used": sum(u["tokens_used"] for u in usage),
         "keys": usage,
-        "gemini_active": groq_all_exhausted and bool(GEMINI_API_KEY),
-        "gemini_tokens": gemini_tok,
-        "gemini_configured": bool(GEMINI_API_KEY),
     }
 
 
@@ -187,7 +175,6 @@ def _call_groq(prompt: str, temperature: float = 0.3) -> str:
             if "429" in msg and ("tokens per day" in msg or "TPD" in msg):
                 with _lock:
                     _exhausted[idx] = True
-                    # Don't inflate to DAILY_LIMIT — keep the actual accumulated count
                     if _current_idx == idx:
                         _current_idx = idx + 1
                     next_idx = _current_idx
@@ -204,54 +191,6 @@ def _call_groq(prompt: str, temperature: float = 0.3) -> str:
         f"All {len(keys)} Groq API keys have reached their 100k/day token limit. "
         "Scoring will resume tomorrow when the quota resets."
     )
-
-
-# ── Gemini Flash fallback ─────────────────────────────────────────────────────
-
-def _call_gemini(prompt: str, temperature: float = 0.3) -> str:
-    global _gemini_tokens, _gemini_errors
-    if not GEMINI_API_KEY:
-        raise ScorerError("GEMINI_API_KEY not configured.")
-    try:
-        from google import genai
-        from google.genai import types
-    except ImportError:
-        raise ScorerError("google-genai not installed.")
-
-    client = genai.Client(
-        api_key=GEMINI_API_KEY,
-        http_options={"api_version": "v1"},
-    )
-    response = client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents="You are a helpful assistant. Always respond with valid JSON only.\n\n" + prompt,
-        config=types.GenerateContentConfig(
-            temperature=temperature,
-            max_output_tokens=600,
-        ),
-    )
-    if response.usage_metadata:
-        with _lock:
-            _gemini_tokens += response.usage_metadata.total_token_count
-    time.sleep(0.5)
-    return response.text
-
-
-def _call_ai(prompt: str, temperature: float = 0.3) -> str:
-    """Try Groq first; fall back to Gemini Flash if all Groq keys are exhausted."""
-    global _gemini_errors
-    try:
-        return _call_groq(prompt, temperature)
-    except RateLimitError:
-        logger.info("All Groq keys exhausted — falling back to Gemini Flash")
-        try:
-            return _call_gemini(prompt, temperature)
-        except Exception as e:
-            with _lock:
-                _gemini_errors += 1
-            raise RateLimitError(
-                f"Groq quota exhausted and Gemini fallback failed: {e}"
-            )
 
 
 # ── JSON parsing ──────────────────────────────────────────────────────────────
@@ -303,7 +242,7 @@ def score_job(job: dict) -> tuple[int, str]:
     )
     for attempt in range(2):
         try:
-            raw = _call_ai(prompt, temperature=0.3)
+            raw = _call_groq(prompt, temperature=0.3)
             data = _parse_json(raw, ["score", "reasoning"])
             score = max(1, min(10, int(data["score"])))
             return score, data.get("reasoning", "")
@@ -327,7 +266,7 @@ def draft_email(job: dict) -> tuple[str, str]:
     )
     for attempt in range(2):
         try:
-            raw = _call_ai(prompt, temperature=0.6)
+            raw = _call_groq(prompt, temperature=0.6)
             data = _parse_json(raw, ["subject", "body"])
             return data["subject"], data["body"]
         except RateLimitError:

@@ -23,8 +23,7 @@ export default function TokenMeter() {
     : 0;
 
   const allExhausted = stats.keys.every((k) => k.exhausted);
-  const usingGemini = stats.gemini_active;
-  const statusColor = usingGemini ? "#a78bfa" : allExhausted ? "#ef4444" : totalPct > 70 ? "#f59e0b" : "#22c55e";
+  const statusColor = allExhausted ? "#ef4444" : totalPct > 70 ? "#f59e0b" : "#22c55e";
 
   return (
     <div
@@ -35,11 +34,7 @@ export default function TokenMeter() {
       {/* Compact summary row */}
       <div style={s.row}>
         <span style={{ ...s.label, color: statusColor }}>⚡</span>
-        {usingGemini ? (
-          <span style={{ ...s.label, color: "#a78bfa", fontWeight: 600 }}>Gemini</span>
-        ) : (
-          <span style={s.label}>Key {stats.active_key}/{stats.keys_total}</span>
-        )}
+        <span style={s.label}>Key {stats.active_key}/{stats.keys_total}</span>
         <span style={{ ...s.label, color: "#475569" }}>·</span>
         <span style={s.label}>
           {(stats.total_used / 1000).toFixed(1)}k
@@ -88,24 +83,8 @@ export default function TokenMeter() {
               </div>
             );
           })}
-          {stats.gemini_configured && (
-            <div style={{ ...s.tooltipRow, marginTop: 4 }}>
-              <div style={s.tooltipLeft}>
-                <span style={{ ...s.keyDot, background: usingGemini ? "#a78bfa" : "#334155" }} />
-                <span style={{ color: usingGemini ? "#a78bfa" : "#475569", fontSize: 12 }}>
-                  Gemini Flash
-                  {usingGemini && <span style={{ ...s.activeBadge, color: "#a78bfa", background: "#a78bfa18", borderColor: "#a78bfa33" }}>active</span>}
-                </span>
-              </div>
-              <span style={{ ...s.tooltipCount, color: usingGemini ? "#a78bfa" : "#475569" }}>
-                {usingGemini ? `${(stats.gemini_tokens / 1000).toFixed(1)}k used` : "standby"}
-              </span>
-            </div>
-          )}
           <div style={s.tooltipFooter}>
-            {usingGemini
-              ? "Groq exhausted — using Gemini Flash (1M tokens/day)"
-              : `Total: ${(stats.total_used / 1000).toFixed(1)}k / ${(stats.total_available / 1000).toFixed(0)}k tokens today`}
+            {`Total: ${(stats.total_used / 1000).toFixed(1)}k / ${(stats.total_available / 1000).toFixed(0)}k tokens today`}
           </div>
         </div>
       )}

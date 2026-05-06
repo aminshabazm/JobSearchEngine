@@ -112,10 +112,6 @@ AI AGENT PROJECTS:
 - Specializing in LLM orchestration and autonomous decision-making systems
 """
 
-# --- Gemini API (free fallback when all Groq keys exhausted) ---
-# Get free key at aistudio.google.com → Get API key (1M tokens/day free)
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-
 # --- App Login ---
 APP_USERNAME = os.environ.get("APP_USERNAME", "shabaz")
 APP_PASSWORD = os.environ.get("APP_PASSWORD", "")
