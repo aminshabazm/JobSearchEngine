@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { apiFetch } from "../api.js";
 import JobModal from "./JobModal.jsx";
 
 const STATUS_COLORS = {
@@ -13,7 +14,7 @@ export default function SavedJobs() {
 
   const load = () => {
     setLoading(true);
-    fetch("/api/jobs/saved")
+    apiFetch("/api/jobs/saved")
       .then((r) => r.json())
       .then((d) => { setJobs(d); setLoading(false); })
       .catch(() => setLoading(false));
@@ -23,14 +24,14 @@ export default function SavedJobs() {
 
   const handleUnsave = async (e, jobId) => {
     e.stopPropagation();
-    await fetch(`/api/jobs/${jobId}/save`, { method: "PATCH" });
+    await apiFetch(`/api/jobs/${jobId}/save`, { method: "PATCH" });
     setJobs((j) => j.filter((x) => x.job_id !== jobId));
     if (selected?.job_id === jobId) setSelected(null);
   };
 
   const handleDelete = async (e, jobId) => {
     e.stopPropagation();
-    await fetch(`/api/jobs/${jobId}`, { method: "DELETE" });
+    await apiFetch(`/api/jobs/${jobId}`, { method: "DELETE" });
     setJobs((j) => j.filter((x) => x.job_id !== jobId));
     if (selected?.job_id === jobId) setSelected(null);
   };
@@ -41,7 +42,7 @@ export default function SavedJobs() {
 
   const handleModalUpdate = () => {
     if (selected) {
-      fetch(`/api/jobs/${selected.job_id}`).then((r) => r.json()).then(setSelected);
+      apiFetch(`/api/jobs/${selected.job_id}`).then((r) => r.json()).then(setSelected);
     }
     load();
   };

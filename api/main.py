@@ -1,12 +1,14 @@
+import secrets
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from src.mailer import send_email
 from src.storage import (
@@ -42,6 +44,21 @@ from src.storage import (
 
 app = FastAPI(title="Job Search Engine", version="1.0.0")
 
+_SESSIONS: set = set()
+
+
+class AuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+        if path == "/api/login" or not path.startswith("/api/"):
+            return await call_next(request)
+        token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+        if token not in _SESSIONS:
+            return JSONResponse({"detail": "Not authenticated"}, status_code=401)
+        return await call_next(request)
+
+
+app.add_middleware(AuthMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -50,6 +67,32 @@ app.add_middleware(
 )
 
 initialize_db()
+
+# ---------------------------------------------------------------------------
+# Auth
+# ---------------------------------------------------------------------------
+
+class LoginPayload(BaseModel):
+    username: str
+    password: str
+
+
+@app.post("/api/login")
+def api_login(payload: LoginPayload):
+    from config.settings import APP_USERNAME, APP_PASSWORD
+    if payload.username == APP_USERNAME and payload.password == APP_PASSWORD:
+        token = secrets.token_hex(32)
+        _SESSIONS.add(token)
+        return {"ok": True, "token": token}
+    raise HTTPException(status_code=401, detail="Invalid username or password")
+
+
+@app.post("/api/logout")
+def api_logout(request: Request):
+    token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+    _SESSIONS.discard(token)
+    return {"ok": True}
+
 
 # ---------------------------------------------------------------------------
 # Main pipeline state

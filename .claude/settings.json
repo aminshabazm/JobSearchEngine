@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Start-Process -FilePath \"cmd.exe\" -ArgumentList \"/c cd `\"c:\\\\Users\\\\hp\\\\OneDrive\\\\Desktop\\\\My Projects\\\\JobSearchEngine`\" && uvicorn api.main:app --reload --port 8000\" -WindowStyle Normal)",
+      "Read(//c/Users/hp/OneDrive/Desktop/My Projects/**)"
+    ]
+  }
+}

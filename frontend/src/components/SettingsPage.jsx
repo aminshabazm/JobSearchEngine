@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { apiFetch } from "../api.js";
 
 const WORK_MODES = [
   { value: "Remote",    label: "Remote",          color: "#22c55e" },
@@ -41,15 +42,15 @@ export default function SettingsPage() {
   const [msg, setMsg] = useState(null);
 
   useEffect(() => {
-    fetch("/api/settings/portals").then((r) => r.json()).then(setPortals).catch(() => {});
-    fetch("/api/settings/queries")
+    apiFetch("/api/settings/portals").then((r) => r.json()).then(setPortals).catch(() => {});
+    apiFetch("/api/settings/queries")
       .then((r) => r.json())
       .then(setQueries)
       .catch(() => setMsg({ type: "error", text: "Failed to load queries" }));
   }, []);
 
   const handleTogglePortal = async (name, enabled) => {
-    const res = await fetch(`/api/settings/portals/${name}`, {
+    const res = await apiFetch(`/api/settings/portals/${name}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ enabled: !enabled }),
@@ -66,7 +67,7 @@ export default function SettingsPage() {
     if (!newTerm.trim()) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/settings/queries", {
+      const res = await apiFetch("/api/settings/queries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ search_term: newTerm.trim(), location: newLocation, work_mode: newMode }),
@@ -88,7 +89,7 @@ export default function SettingsPage() {
 
   const handleDelete = async (id) => {
     try {
-      const res = await fetch(`/api/settings/queries/${id}`, { method: "DELETE" });
+      const res = await apiFetch(`/api/settings/queries/${id}`, { method: "DELETE" });
       if (res.ok) setQueries((q) => q.filter((x) => x.id !== id));
     } catch {
       flash("error", "Failed to delete");
@@ -97,7 +98,7 @@ export default function SettingsPage() {
 
   const handleToggle = async (id, enabled) => {
     try {
-      const res = await fetch(`/api/settings/queries/${id}`, {
+      const res = await apiFetch(`/api/settings/queries/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enabled: !enabled }),

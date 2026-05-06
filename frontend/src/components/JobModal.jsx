@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { apiFetch } from "../api.js";
 import JobDetail from "./JobDetail.jsx";
 
 export default function JobModal({ job, onClose, onUpdate, onDelete }) {
@@ -10,7 +11,7 @@ export default function JobModal({ job, onClose, onUpdate, onDelete }) {
   }, [onClose]);
 
   const handleDelete = async () => {
-    await fetch(`/api/jobs/${job.job_id}`, { method: "DELETE" });
+    await apiFetch(`/api/jobs/${job.job_id}`, { method: "DELETE" });
     onDelete(job.job_id);
     onClose();
   };

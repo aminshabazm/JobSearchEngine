@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { apiFetch } from "../api.js";
 
 export default function EmailPreview({ job, onUpdate }) {
   const [subject, setSubject] = useState(job.email_subject ?? "");
@@ -17,7 +18,7 @@ export default function EmailPreview({ job, onUpdate }) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const res = await fetch(`/api/jobs/${job.job_id}/email`, {
+      const res = await apiFetch(`/api/jobs/${job.job_id}/email`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ subject, body }),
@@ -42,7 +43,7 @@ export default function EmailPreview({ job, onUpdate }) {
     }
     setSending(true);
     try {
-      const res = await fetch(`/api/jobs/${job.job_id}/approve`, {
+      const res = await apiFetch(`/api/jobs/${job.job_id}/approve`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ subject, body, to_address: toAddress }),
@@ -64,7 +65,7 @@ export default function EmailPreview({ job, onUpdate }) {
   const handleSkip = async () => {
     setSkipping(true);
     try {
-      await fetch(`/api/jobs/${job.job_id}/skip`, { method: "PATCH" });
+      await apiFetch(`/api/jobs/${job.job_id}/skip`, { method: "PATCH" });
       flash("Job skipped");
       onUpdate();
     } catch {

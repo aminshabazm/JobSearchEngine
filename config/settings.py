@@ -103,5 +103,9 @@ AI AGENT PROJECTS:
 - Specializing in LLM orchestration and autonomous decision-making systems
 """
 
+# --- App Login ---
+APP_USERNAME = os.environ.get("APP_USERNAME", "shabaz")
+APP_PASSWORD = os.environ.get("APP_PASSWORD", "")
+
 # --- Logging ---
 LOG_LEVEL = "INFO"   # DEBUG | INFO | WARNING | ERROR

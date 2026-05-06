@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { apiFetch, clearToken, getToken } from "./api.js";
+import Login from "./components/Login.jsx";
 import JobModal from "./components/JobModal.jsx";
 import JobTable from "./components/JobTable.jsx";
 import SavedJobs from "./components/SavedJobs.jsx";
@@ -67,6 +69,20 @@ const NAV_ITEMS = [
 // ── Main App ─────────────────────────────────────────────────────────────────
 
 export default function App() {
+  const [authed, setAuthed] = useState(!!getToken());
+
+  const handleLogout = async () => {
+    await apiFetch("/api/logout", { method: "POST" }).catch(() => {});
+    clearToken();
+    setAuthed(false);
+  };
+
+  if (!authed) return <Login onLogin={() => setAuthed(true)} />;
+
+  return <AppInner onLogout={handleLogout} />;
+}
+
+function AppInner({ onLogout }) {
   const [stats, setStats] = useState(null);
   const [jobs, setJobs] = useState([]);
   const [selectedJob, setSelectedJob] = useState(null);
@@ -78,17 +94,18 @@ export default function App() {
   const [view, setView] = useState("home");
   const [confirmClear, setConfirmClear] = useState(false);
   const [tooltip, setTooltip] = useState(null);
+  const [showLogout, setShowLogout] = useState(false);
   const pollRef = useRef(null);
 
   const fetchStats = () =>
-    fetch("/api/stats").then((r) => r.json()).then(setStats).catch(() => {});
+    apiFetch("/api/stats").then((r) => r.json()).then(setStats).catch(() => {});
 
   const fetchJobs = () => {
     setLoading(true);
     const params = new URLSearchParams();
     if (statusFilter) params.set("status", statusFilter);
     if (minScore > 0) params.set("min_score", minScore);
-    fetch(`/api/jobs?${params}`)
+    apiFetch(`/api/jobs?${params}`)
       .then((r) => r.json())
       .then((data) => { setJobs(data.filter((j) => !j.is_saved)); setLoading(false); })
       .catch(() => setLoading(false));
@@ -100,7 +117,7 @@ export default function App() {
     if (pollRef.current) return;
     pollRef.current = setInterval(async () => {
       try {
-        const res = await fetch("/api/run/status");
+        const res = await apiFetch("/api/run/status");
         const data = await res.json();
         if (data.running) {
           setPipelineMsg(data.progress
@@ -123,7 +140,7 @@ export default function App() {
     if (pipelineRunning) return;
     setPipelineMsg(null);
     try {
-      const res = await fetch("/api/run", { method: "POST" });
+      const res = await apiFetch("/api/run", { method: "POST" });
       const data = await res.json();
       if (data.ok) { setPipelineRunning(true); setPipelineMsg("Fetching jobs & scoring with Groq AI..."); startPolling(); }
       else setPipelineMsg(data.message);
@@ -131,13 +148,13 @@ export default function App() {
   };
 
   const handleClearJobs = async () => {
-    await fetch("/api/jobs", { method: "DELETE" });
+    await apiFetch("/api/jobs", { method: "DELETE" });
     setJobs([]); setSelectedJob(null); setConfirmClear(false); fetchStats();
   };
 
   const handleJobUpdate = () => {
     fetchStats(); fetchJobs();
-    if (selectedJob) fetch(`/api/jobs/${selectedJob.job_id}`).then((r) => r.json()).then(setSelectedJob);
+    if (selectedJob) apiFetch(`/api/jobs/${selectedJob.job_id}`).then((r) => r.json()).then(setSelectedJob);
   };
 
   const handleSaveToggle = (jobId, isSaved) => {
@@ -198,6 +215,23 @@ export default function App() {
               {pipelineRunning ? <><span style={st.spinner} /> Running...</> : "▶ Run Pipeline"}
             </button>
           )}
+
+          {/* User / Logout */}
+          <div style={{ position: "relative" }}>
+            <button
+              onClick={() => setShowLogout((v) => !v)}
+              style={st.userBtn}
+              title="Account"
+            >
+              👤
+            </button>
+            {showLogout && (
+              <div style={st.userMenu}>
+                <div style={st.userMenuName}>shabaz</div>
+                <button onClick={onLogout} style={st.logoutBtn}>Sign out</button>
+              </div>
+            )}
+          </div>
         </div>
 
         {pipelineMsg && view !== "upwork" && (
@@ -360,4 +394,8 @@ const st = {
   tableWrap: { flex: 1, overflowY: "auto" },
   emptyBox: { padding: 60, textAlign: "center" },
   empty: { padding: 32, textAlign: "center", color: "#64748b", fontSize: 14 },
+  userBtn: { background: "transparent", border: "1px solid #334155", borderRadius: 8, color: "#94a3b8", fontSize: 16, padding: "6px 10px", cursor: "pointer" },
+  userMenu: { position: "absolute", right: 0, top: "calc(100% + 6px)", background: "#1e293b", border: "1px solid #334155", borderRadius: 8, padding: "10px", minWidth: 140, zIndex: 200, boxShadow: "0 8px 24px rgba(0,0,0,0.4)" },
+  userMenuName: { fontSize: 13, fontWeight: 600, color: "#f1f5f9", padding: "4px 8px 10px", borderBottom: "1px solid #334155", marginBottom: 6 },
+  logoutBtn: { width: "100%", background: "transparent", border: "none", color: "#f87171", fontSize: 13, padding: "6px 8px", cursor: "pointer", textAlign: "left", borderRadius: 4 },
 };

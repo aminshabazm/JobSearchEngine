@@ -1,3 +1,5 @@
+import { apiFetch } from "../api.js";
+
 const STATUS_COLORS = {
   new: "#64748b", scored: "#64748b", pending: "#f59e0b",
   approved: "#3b82f6", sent: "#22c55e", skipped: "#475569", error: "#ef4444",
@@ -16,14 +18,14 @@ function ScoreBadge({ score }) {
 export default function JobTable({ jobs, onSelect, onSaveToggle, onDelete }) {
   const handleSave = async (e, job) => {
     e.stopPropagation();
-    const res = await fetch(`/api/jobs/${job.job_id}/save`, { method: "PATCH" });
+    const res = await apiFetch(`/api/jobs/${job.job_id}/save`, { method: "PATCH" });
     const data = await res.json();
     if (data.ok && onSaveToggle) onSaveToggle(job.job_id, data.is_saved);
   };
 
   const handleDelete = async (e, job) => {
     e.stopPropagation();
-    await fetch(`/api/jobs/${job.job_id}`, { method: "DELETE" });
+    await apiFetch(`/api/jobs/${job.job_id}`, { method: "DELETE" });
     if (onDelete) onDelete(job.job_id);
   };
 

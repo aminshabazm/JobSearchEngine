@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { apiFetch } from "../api.js";
 
 const STATUS_COLORS = {
   new: "#64748b", scored: "#64748b", pending: "#f59e0b",
@@ -19,19 +20,19 @@ function JobDetailPanel({ job, onClose, onDelete, onSaveToggle }) {
   if (!job) return null;
 
   const handleSave = async () => {
-    const res = await fetch(`/api/upwork/jobs/${job.job_id}/save`, { method: "PATCH" });
+    const res = await apiFetch(`/api/upwork/jobs/${job.job_id}/save`, { method: "PATCH" });
     const data = await res.json();
     if (data.ok) onSaveToggle(job.job_id, data.is_saved);
   };
 
   const handleSkip = async () => {
-    await fetch(`/api/upwork/jobs/${job.job_id}/skip`, { method: "PATCH" });
+    await apiFetch(`/api/upwork/jobs/${job.job_id}/skip`, { method: "PATCH" });
     onDelete(job.job_id);
     onClose();
   };
 
   const handleDelete = async () => {
-    await fetch(`/api/upwork/jobs/${job.job_id}`, { method: "DELETE" });
+    await apiFetch(`/api/upwork/jobs/${job.job_id}`, { method: "DELETE" });
     onDelete(job.job_id);
     onClose();
   };
@@ -100,7 +101,7 @@ function QueryFilter() {
   const [msg, setMsg] = useState(null);
 
   useEffect(() => {
-    fetch("/api/upwork/queries").then((r) => r.json()).then(setQueries).catch(() => {});
+    apiFetch("/api/upwork/queries").then((r) => r.json()).then(setQueries).catch(() => {});
   }, []);
 
   const flash = (type, text) => {
@@ -112,7 +113,7 @@ function QueryFilter() {
     if (!newTerm.trim()) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/upwork/queries", {
+      const res = await apiFetch("/api/upwork/queries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ search_term: newTerm.trim() }),
@@ -125,12 +126,12 @@ function QueryFilter() {
   };
 
   const handleDelete = async (id) => {
-    const res = await fetch(`/api/upwork/queries/${id}`, { method: "DELETE" });
+    const res = await apiFetch(`/api/upwork/queries/${id}`, { method: "DELETE" });
     if (res.ok) setQueries((q) => q.filter((x) => x.id !== id));
   };
 
   const handleToggle = async (id, enabled) => {
-    const res = await fetch(`/api/upwork/queries/${id}`, {
+    const res = await apiFetch(`/api/upwork/queries/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ enabled: !enabled }),
@@ -205,7 +206,7 @@ export default function UpworkPage() {
   const pollRef = useRef(null);
 
   const fetchStats = () =>
-    fetch("/api/upwork/stats").then((r) => r.json()).then(setStats).catch(() => {});
+    apiFetch("/api/upwork/stats").then((r) => r.json()).then(setStats).catch(() => {});
 
   const fetchJobs = () => {
     setLoading(true);
@@ -213,7 +214,7 @@ export default function UpworkPage() {
     const params = new URLSearchParams();
     if (activeTab === "jobs" && statusFilter) params.set("status", statusFilter);
     if (activeTab === "jobs" && minScore > 0) params.set("min_score", minScore);
-    fetch(`${endpoint}?${params}`)
+    apiFetch(`${endpoint}?${params}`)
       .then((r) => r.json())
       .then((data) => { setJobs(data); setLoading(false); })
       .catch(() => setLoading(false));
@@ -228,7 +229,7 @@ export default function UpworkPage() {
     if (pollRef.current) return;
     pollRef.current = setInterval(async () => {
       try {
-        const res = await fetch("/api/upwork/run/status");
+        const res = await apiFetch("/api/upwork/run/status");
         const data = await res.json();
         if (data.running) {
           if (data.progress) {
@@ -262,7 +263,7 @@ export default function UpworkPage() {
     if (pipelineRunning) return;
     setPipelineMsg(null);
     try {
-      const res = await fetch("/api/upwork/run", { method: "POST" });
+      const res = await apiFetch("/api/upwork/run", { method: "POST" });
       const data = await res.json();
       if (data.ok) {
         setPipelineRunning(true);
@@ -277,7 +278,7 @@ export default function UpworkPage() {
   };
 
   const handleClearJobs = async () => {
-    await fetch("/api/upwork/jobs", { method: "DELETE" });
+    await apiFetch("/api/upwork/jobs", { method: "DELETE" });
     setJobs([]); setSelectedJob(null); setConfirmClear(false);
     fetchStats();
   };
@@ -457,7 +458,7 @@ export default function UpworkPage() {
                           <button
                             onClick={async (e) => {
                               e.stopPropagation();
-                              const res = await fetch(`/api/upwork/jobs/${job.job_id}/save`, { method: "PATCH" });
+                              const res = await apiFetch(`/api/upwork/jobs/${job.job_id}/save`, { method: "PATCH" });
                               const data = await res.json();
                               if (data.ok) handleSaveToggle(job.job_id, data.is_saved);
                             }}
@@ -469,7 +470,7 @@ export default function UpworkPage() {
                           <button
                             onClick={async (e) => {
                               e.stopPropagation();
-                              await fetch(`/api/upwork/jobs/${job.job_id}`, { method: "DELETE" });
+                              await apiFetch(`/api/upwork/jobs/${job.job_id}`, { method: "DELETE" });
                               handleDelete(job.job_id);
                             }}
                             style={{ background: "transparent", border: "none", cursor: "pointer", color: "#ef444488", fontSize: 14 }}
