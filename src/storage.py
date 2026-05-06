@@ -134,7 +134,7 @@ def insert_jobs(jobs: list[dict]) -> int:
 def get_unscored_jobs() -> list[sqlite3.Row]:
     with get_connection() as conn:
         return conn.execute(
-            "SELECT * FROM jobs WHERE status = 'new' ORDER BY created_at ASC"
+            "SELECT * FROM jobs WHERE status IN ('new', 'error') ORDER BY created_at ASC"
         ).fetchall()
 
 

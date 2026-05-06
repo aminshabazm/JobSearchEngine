@@ -140,6 +140,8 @@ def score_job(job: dict) -> tuple[int, str]:
             data = _parse_json(raw, ["score", "reasoning"])
             score = max(1, min(10, int(data["score"])))
             return score, data.get("reasoning", "")
+        except RateLimitError:
+            raise  # never retry on daily limit — propagate immediately
         except ScorerError as e:
             if attempt == 0:
                 logger.warning("Score parse failed (attempt 1), retrying: %s", e)
@@ -161,6 +163,8 @@ def draft_email(job: dict) -> tuple[str, str]:
             raw = _call_groq(prompt, temperature=0.6)
             data = _parse_json(raw, ["subject", "body"])
             return data["subject"], data["body"]
+        except RateLimitError:
+            raise
         except ScorerError as e:
             if attempt == 0:
                 logger.warning("Email draft parse failed (attempt 1), retrying: %s", e)
