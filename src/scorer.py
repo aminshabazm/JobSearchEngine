@@ -11,7 +11,7 @@ from config.settings import GEMINI_API_KEY, GROQ_API_KEYS, GROQ_MODEL, RESUME_TE
 logger = logging.getLogger("pipeline")
 
 DAILY_LIMIT = 100_000
-GEMINI_MODEL = "gemini-2.0-flash"
+GEMINI_MODEL = "gemini-1.5-flash"
 
 # ── Groq key pool state ───────────────────────────────────────────────────────
 _lock = threading.Lock()
