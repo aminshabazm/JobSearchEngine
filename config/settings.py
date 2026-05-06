@@ -39,6 +39,9 @@ GROQ_MODEL   = "llama-3.3-70b-versatile"
 # Jobs scoring >= this threshold get a drafted email
 SCORE_THRESHOLD = 7
 
+# Max jobs to score per pipeline run (prevents exhausting Groq free-tier 100k TPD limit)
+MAX_JOBS_PER_RUN = int(os.environ.get("MAX_JOBS_PER_RUN", "20"))
+
 # --- Gmail SMTP ---
 # Generate an App Password: Google Account → Security → 2-Step Verification → App Passwords
 # Remove the spaces when pasting: "xxxx xxxx xxxx xxxx" → "xxxxxxxxxxxxxxxx"

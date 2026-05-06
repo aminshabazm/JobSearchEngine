@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+import time
 
 from groq import Groq
 
@@ -56,6 +57,11 @@ class ScorerError(Exception):
     pass
 
 
+class RateLimitError(ScorerError):
+    """Raised when Groq daily token limit is reached — signals the pipeline to stop scoring."""
+    pass
+
+
 def _client() -> Groq:
     if not GROQ_API_KEY:
         raise ScorerError(
@@ -67,17 +73,24 @@ def _client() -> Groq:
 
 
 def _call_groq(prompt: str, temperature: float = 0.3) -> str:
-    response = _client().chat.completions.create(
-        model=GROQ_MODEL,
-        messages=[
-            {"role": "system", "content": "You are a helpful assistant. Always respond with valid JSON only."},
-            {"role": "user", "content": prompt},
-        ],
-        response_format={"type": "json_object"},
-        temperature=temperature,
-        max_tokens=600,
-    )
-    return response.choices[0].message.content
+    try:
+        response = _client().chat.completions.create(
+            model=GROQ_MODEL,
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant. Always respond with valid JSON only."},
+                {"role": "user", "content": prompt},
+            ],
+            response_format={"type": "json_object"},
+            temperature=temperature,
+            max_tokens=600,
+        )
+        time.sleep(1.5)  # stay within per-minute token limits
+        return response.choices[0].message.content
+    except Exception as e:
+        msg = str(e)
+        if "429" in msg and ("tokens per day" in msg or "TPD" in msg):
+            raise RateLimitError("Groq daily token limit (100k/day) reached. Scoring will resume tomorrow.")
+        raise
 
 
 def _parse_json(raw: str, required_keys: list[str]) -> dict:

@@ -3,9 +3,9 @@ import logging.handlers
 import time
 from datetime import datetime
 
-from config.settings import LOG_DIR, LOG_LEVEL, SCORE_THRESHOLD
+from config.settings import LOG_DIR, LOG_LEVEL, MAX_JOBS_PER_RUN, SCORE_THRESHOLD
 from src.mailer import validate_smtp_config
-from src.scorer import ScorerError, check_groq, draft_email, score_job
+from src.scorer import RateLimitError, ScorerError, check_groq, draft_email, score_job
 from src.scraper import ScraperError, fetch_all_queries
 from src.storage import (
     get_unscored_jobs,
@@ -72,8 +72,12 @@ def run_pipeline(progress_cb=None) -> None:
     logger.info("Fetched %d jobs, %d are new", len(jobs), new_count)
 
     # --- Score & draft ---
-    unscored = get_unscored_jobs()
-    logger.info("Scoring %d new jobs...", len(unscored))
+    all_unscored = get_unscored_jobs()
+    unscored = all_unscored[:MAX_JOBS_PER_RUN]
+    skipped_count = len(all_unscored) - len(unscored)
+    logger.info("Scoring %d new jobs (cap %d/run)%s...",
+                len(unscored), MAX_JOBS_PER_RUN,
+                f" — {skipped_count} queued for next run" if skipped_count else "")
 
     for idx, job in enumerate(unscored, 1):
         jid = job["job_id"]
@@ -94,6 +98,10 @@ def run_pipeline(progress_cb=None) -> None:
             else:
                 update_job_status(jid, "skipped")
 
+        except RateLimitError as e:
+            logger.warning("  Rate limit hit — stopping scoring for today. %s", e)
+            logger.warning("  %d jobs remain unscored for next run.", len(unscored) - idx)
+            break
         except ScorerError as e:
             update_job_status(jid, "error", error_message=str(e))
             stats["errors"] += 1
