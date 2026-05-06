@@ -28,5 +28,4 @@ RUN mkdir -p data logs
 
 EXPOSE 8000
 
-# Railway injects $PORT; fall back to 8000 locally
-CMD uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8000}
+CMD ["python", "start.py"]
