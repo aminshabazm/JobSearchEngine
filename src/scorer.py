@@ -228,7 +228,6 @@ def _call_gemini(prompt: str, temperature: float = 0.3) -> str:
         config=types.GenerateContentConfig(
             temperature=temperature,
             max_output_tokens=600,
-            response_mime_type="application/json",
         ),
     )
     if response.usage_metadata:
