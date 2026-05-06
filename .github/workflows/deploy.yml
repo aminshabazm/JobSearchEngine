@@ -1,0 +1,18 @@
+name: Deploy to Railway
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Railway deployment
+        run: |
+          curl -s -X POST https://backboard.railway.app/graphql/v2 \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
+            -d '{
+              "query": "mutation { serviceInstanceDeploy(serviceId: \"227e9296-136f-4414-a54b-a4e85384386f\", environmentId: \"8dfd8994-cace-4541-905c-2b104886520e\") }"
+            }'
