@@ -46,24 +46,31 @@ def _keys() -> list[str]:
 
 
 def get_token_stats() -> dict:
+    _ensure_db_loaded()
     keys = _keys()
+    try:
+        from src.storage import get_token_usage_today
+        db_counts = get_token_usage_today()
+    except Exception:
+        db_counts = {}
     with _lock:
         idx = _current_idx
-        usage = [
-            {
+        usage = []
+        for i in range(len(keys)):
+            # DB is authoritative; in-memory may be higher if 429 inflated it
+            tokens_used = max(db_counts.get(i, 0), _token_counts.get(i, 0))
+            usage.append({
                 "key": i + 1,
-                "tokens_used": _token_counts.get(i, 0),
+                "tokens_used": tokens_used,
                 "limit": DAILY_LIMIT,
                 "exhausted": _exhausted.get(i, False),
-                "pct": min(100, round(_token_counts.get(i, 0) / DAILY_LIMIT * 100, 1)),
-            }
-            for i in range(len(keys))
-        ]
+                "pct": min(100, round(tokens_used / DAILY_LIMIT * 100, 1)),
+            })
     return {
         "keys_total": len(keys),
         "active_key": min(idx + 1, len(keys)),
         "total_available": len(keys) * DAILY_LIMIT,
-        "total_used": sum(_token_counts.get(i, 0) for i in range(len(keys))),
+        "total_used": sum(u["tokens_used"] for u in usage),
         "keys": usage,
     }
 
@@ -169,7 +176,7 @@ def _call_groq(prompt: str, temperature: float = 0.3) -> str:
             if "429" in msg and ("tokens per day" in msg or "TPD" in msg):
                 with _lock:
                     _exhausted[idx] = True
-                    _token_counts[idx] = DAILY_LIMIT
+                    # Don't inflate to DAILY_LIMIT — keep the actual accumulated count
                     if _current_idx == idx:
                         _current_idx = idx + 1
                     next_idx = _current_idx
