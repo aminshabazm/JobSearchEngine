@@ -12,11 +12,33 @@ logger = logging.getLogger("pipeline")
 
 DAILY_LIMIT = 100_000
 
-# ── Key pool state (module-level, resets on server restart) ──────────────────
+# ── Key pool state ────────────────────────────────────────────────────────────
 _lock = threading.Lock()
-_current_idx = 0                    # index of the active key
-_token_counts: dict[int, int] = {}  # key_idx → tokens used this session
-_exhausted: dict[int, bool] = {}    # key_idx → True once daily limit hit
+_current_idx = 0
+_token_counts: dict[int, int] = {}
+_exhausted: dict[int, bool] = {}
+_db_loaded = False
+
+
+def _ensure_db_loaded() -> None:
+    global _db_loaded, _current_idx
+    if _db_loaded:
+        return
+    with _lock:
+        if _db_loaded:
+            return
+        try:
+            from src.storage import get_token_usage_today
+            for k_idx, count in get_token_usage_today().items():
+                _token_counts[k_idx] = count
+                if count >= DAILY_LIMIT:
+                    _exhausted[k_idx] = True
+            keys = _keys()
+            while _current_idx < len(keys) and _exhausted.get(_current_idx, False):
+                _current_idx += 1
+        except Exception:
+            pass
+        _db_loaded = True
 
 
 def _keys() -> list[str]:
@@ -107,6 +129,7 @@ class RateLimitError(ScorerError):
 
 def _call_groq(prompt: str, temperature: float = 0.3) -> str:
     global _current_idx
+    _ensure_db_loaded()
     keys = _keys()
     if not keys:
         raise ScorerError("No GROQ_API_KEY configured.")
@@ -130,8 +153,14 @@ def _call_groq(prompt: str, temperature: float = 0.3) -> str:
                 max_tokens=600,
             )
             if response.usage:
+                delta = response.usage.total_tokens
                 with _lock:
-                    _token_counts[idx] = _token_counts.get(idx, 0) + response.usage.total_tokens
+                    _token_counts[idx] = _token_counts.get(idx, 0) + delta
+                try:
+                    from src.storage import upsert_token_usage
+                    upsert_token_usage(idx, delta)
+                except Exception:
+                    pass
             time.sleep(1.5)
             return response.choices[0].message.content
 

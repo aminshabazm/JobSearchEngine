@@ -86,6 +86,18 @@ CREATE TABLE IF NOT EXISTS run_log (
     errors       INTEGER DEFAULT 0,
     duration_sec REAL
 );
+
+CREATE TABLE IF NOT EXISTS sessions (
+    token      TEXT PRIMARY KEY,
+    expires_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS token_usage (
+    key_index   INTEGER NOT NULL,
+    date        TEXT NOT NULL,
+    tokens_used INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (key_index, date)
+);
 """
 
 
@@ -432,6 +444,65 @@ def get_upwork_stats() -> dict:
         for row in conn.execute("SELECT status, COUNT(*) as n FROM upwork_jobs GROUP BY status"):
             counts[row["status"]] = row["n"]
         return {"counts": counts, "total": sum(counts.values())}
+
+
+# ---------------------------------------------------------------------------
+# Session management (DB-backed — survives server restarts/redeploys)
+# ---------------------------------------------------------------------------
+
+def create_session(token: str, expires_at: float) -> None:
+    expires_str = datetime.fromtimestamp(expires_at, tz=timezone.utc).isoformat()
+    with get_connection() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO sessions (token, expires_at) VALUES (?, ?)",
+            (token, expires_str),
+        )
+
+
+def validate_session(token: str) -> bool:
+    if not token:
+        return False
+    now = datetime.now(timezone.utc).isoformat()
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT token FROM sessions WHERE token = ? AND expires_at > ?",
+            (token, now),
+        ).fetchone()
+        return row is not None
+
+
+def delete_session(token: str) -> None:
+    with get_connection() as conn:
+        conn.execute("DELETE FROM sessions WHERE token = ?", (token,))
+
+
+def cleanup_expired_sessions() -> None:
+    now = datetime.now(timezone.utc).isoformat()
+    with get_connection() as conn:
+        conn.execute("DELETE FROM sessions WHERE expires_at <= ?", (now,))
+
+
+# ---------------------------------------------------------------------------
+# Token usage tracking (DB-backed — survives server restarts/redeploys)
+# ---------------------------------------------------------------------------
+
+def upsert_token_usage(key_index: int, tokens_delta: int) -> None:
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    with get_connection() as conn:
+        conn.execute(
+            """INSERT INTO token_usage (key_index, date, tokens_used) VALUES (?, ?, ?)
+               ON CONFLICT (key_index, date) DO UPDATE SET tokens_used = tokens_used + excluded.tokens_used""",
+            (key_index, today, tokens_delta),
+        )
+
+
+def get_token_usage_today() -> dict[int, int]:
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT key_index, tokens_used FROM token_usage WHERE date = ?", (today,)
+        ).fetchall()
+    return {row["key_index"]: row["tokens_used"] for row in rows}
 
 
 # ---------------------------------------------------------------------------

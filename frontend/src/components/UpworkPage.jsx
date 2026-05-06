@@ -244,7 +244,7 @@ export default function UpworkPage() {
           setPipelineRunning(false);
           setPipelineMsg(
             data.last_result === "success"
-              ? "Pipeline finished — Upwork jobs updated!"
+              ? "Pipeline finished — remote jobs updated!"
               : data.last_result ?? "Pipeline finished"
           );
           fetchStats();
@@ -267,7 +267,7 @@ export default function UpworkPage() {
       const data = await res.json();
       if (data.ok) {
         setPipelineRunning(true);
-        setPipelineMsg("Fetching Upwork jobs & scoring with Groq AI...");
+        setPipelineMsg("Fetching remote jobs & scoring with Groq AI...");
         startPolling();
       } else {
         setPipelineMsg(data.message);
@@ -363,7 +363,7 @@ export default function UpworkPage() {
             disabled={pipelineRunning}
             style={{ ...s.runBtn, opacity: pipelineRunning ? 0.7 : 1, cursor: pipelineRunning ? "not-allowed" : "pointer" }}
           >
-            {pipelineRunning ? <><span style={s.spinner} /> Running...</> : "▶ Run Upwork Pipeline"}
+            {pipelineRunning ? <><span style={s.spinner} /> Running...</> : "▶ Run Remote Jobs Pipeline"}
           </button>
         </div>
 
@@ -414,12 +414,12 @@ export default function UpworkPage() {
                   {activeTab === "saved" ? "★" : "🔍"}
                 </div>
                 <p style={{ color: "#64748b", fontSize: 15 }}>
-                  {activeTab === "saved" ? "No saved Upwork jobs yet." : "No Upwork jobs found."}
+                  {activeTab === "saved" ? "No saved remote jobs yet." : "No remote jobs found."}
                 </p>
                 <p style={{ color: "#475569", fontSize: 13, marginTop: 6 }}>
                   {activeTab === "saved"
                     ? "Click ☆ on any job to bookmark it here."
-                    : "Click ▶ Run Upwork Pipeline to fetch and score jobs."}
+                    : "Click ▶ Run Remote Jobs Pipeline to fetch and score jobs."}
                 </p>
               </div>
             ) : (

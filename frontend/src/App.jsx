@@ -64,7 +64,7 @@ const NAV_ITEMS = [
   { key: "home",   label: "All Jobs",   Icon: IconAllJobs,  accent: "#6366f1" },
   { key: "saved",  label: "Saved Jobs", Icon: IconSaved,    accent: "#f59e0b" },
   { key: "filter", label: "Job Filter", Icon: IconFilter,   accent: "#818cf8" },
-  { key: "upwork", label: "Upwork",     Icon: IconUpwork,   accent: "#14a800" },
+  { key: "upwork", label: "Remote Jobs", Icon: IconUpwork,   accent: "#14a800" },
 ];
 
 // ── Main App ─────────────────────────────────────────────────────────────────

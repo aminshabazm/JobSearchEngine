@@ -1,3 +1,4 @@
+import re
 import secrets
 import threading
 import time
@@ -17,8 +18,11 @@ from src.storage import (
     add_upwork_query,
     clear_all_jobs,
     clear_all_upwork_jobs,
+    cleanup_expired_sessions,
+    create_session,
     delete_job,
     delete_search_query,
+    delete_session,
     delete_upwork_job,
     delete_upwork_query,
     get_all_jobs,
@@ -41,19 +45,21 @@ from src.storage import (
     update_job_email,
     update_job_status,
     update_upwork_job_status,
+    validate_session,
 )
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 app = FastAPI(
     title="Job Search Engine",
     version="1.0.0",
-    docs_url=None,      # disable public Swagger UI
-    redoc_url=None,     # disable public ReDoc
-    openapi_url=None,   # disable public schema JSON
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
 )
 
 SESSION_TTL = 7 * 24 * 3600  # 7 days
-_SESSIONS: dict[str, float] = {}  # token → expiry timestamp
-_LOGIN_ATTEMPTS: dict[str, list[float]] = {}  # ip → list of attempt timestamps
+_LOGIN_ATTEMPTS: dict[str, list[float]] = {}
 _LOGIN_LOCK = threading.Lock()
 
 
@@ -63,9 +69,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if path == "/api/login" or not path.startswith("/api/"):
             return await call_next(request)
         token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
-        now = time.time()
-        if token not in _SESSIONS or _SESSIONS[token] < now:
-            _SESSIONS.pop(token, None)
+        if not validate_session(token):
             return JSONResponse({"detail": "Not authenticated"}, status_code=401)
         return await call_next(request)
 
@@ -108,7 +112,8 @@ def api_login(payload: LoginPayload, request: Request):
 
     if payload.username == APP_USERNAME and payload.password == APP_PASSWORD:
         token = secrets.token_hex(32)
-        _SESSIONS[token] = now + SESSION_TTL
+        create_session(token, now + SESSION_TTL)
+        cleanup_expired_sessions()
         return {"ok": True, "token": token}
     raise HTTPException(status_code=401, detail="Invalid username or password")
 
@@ -116,7 +121,7 @@ def api_login(payload: LoginPayload, request: Request):
 @app.post("/api/logout")
 def api_logout(request: Request):
     token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
-    _SESSIONS.pop(token, None)
+    delete_session(token)
     return {"ok": True}
 
 
@@ -240,6 +245,8 @@ def api_approve(job_id: str, payload: EmailUpdate):
         raise HTTPException(status_code=404, detail="Job not found")
     if not payload.to_address:
         raise HTTPException(status_code=400, detail="to_address is required to send email")
+    if not _EMAIL_RE.match(payload.to_address):
+        raise HTTPException(status_code=400, detail="to_address is not a valid email address")
     update_job_email(job_id, payload.subject, payload.body)
     sent = send_email(payload.to_address, payload.subject, payload.body)
     if sent:
