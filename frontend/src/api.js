@@ -10,13 +10,18 @@ export function clearToken() {
   localStorage.removeItem("auth_token");
 }
 
-export function apiFetch(url, opts = {}) {
+export async function apiFetch(url, opts = {}) {
   const token = getToken();
-  return fetch(url, {
+  const res = await fetch(url, {
     ...opts,
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...opts.headers,
     },
   });
+  if (res.status === 401 && url !== "/api/login") {
+    clearToken();
+    window.location.reload();
+  }
+  return res;
 }
