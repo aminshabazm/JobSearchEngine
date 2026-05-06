@@ -19,17 +19,17 @@ from src.storage import (
 
 
 def setup_logging() -> logging.Logger:
-    LOG_DIR.mkdir(parents=True, exist_ok=True)
     logger = logging.getLogger("pipeline")
+    if logger.handlers:
+        return logger
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
     logger.setLevel(getattr(logging, LOG_LEVEL, logging.INFO))
     fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s", "%Y-%m-%d %H:%M:%S")
-
     fh = logging.handlers.RotatingFileHandler(
         LOG_DIR / "pipeline.log", maxBytes=5 * 1024 * 1024, backupCount=3
     )
     fh.setFormatter(fmt)
     logger.addHandler(fh)
-
     ch = logging.StreamHandler()
     ch.setFormatter(fmt)
     logger.addHandler(ch)

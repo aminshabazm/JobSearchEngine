@@ -22,6 +22,7 @@ export async function apiFetch(url, opts = {}) {
   if (res.status === 401 && url !== "/api/login") {
     clearToken();
     window.location.reload();
+    throw new Error("Session expired — please log in again");
   }
   return res;
 }

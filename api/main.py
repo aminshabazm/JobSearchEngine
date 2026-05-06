@@ -1,5 +1,6 @@
 import secrets
 import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -42,9 +43,18 @@ from src.storage import (
     update_upwork_job_status,
 )
 
-app = FastAPI(title="Job Search Engine", version="1.0.0")
+app = FastAPI(
+    title="Job Search Engine",
+    version="1.0.0",
+    docs_url=None,      # disable public Swagger UI
+    redoc_url=None,     # disable public ReDoc
+    openapi_url=None,   # disable public schema JSON
+)
 
-_SESSIONS: set = set()
+SESSION_TTL = 7 * 24 * 3600  # 7 days
+_SESSIONS: dict[str, float] = {}  # token → expiry timestamp
+_LOGIN_ATTEMPTS: dict[str, list[float]] = {}  # ip → list of attempt timestamps
+_LOGIN_LOCK = threading.Lock()
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -53,7 +63,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if path == "/api/login" or not path.startswith("/api/"):
             return await call_next(request)
         token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
-        if token not in _SESSIONS:
+        now = time.time()
+        if token not in _SESSIONS or _SESSIONS[token] < now:
+            _SESSIONS.pop(token, None)
             return JSONResponse({"detail": "Not authenticated"}, status_code=401)
         return await call_next(request)
 
@@ -78,11 +90,25 @@ class LoginPayload(BaseModel):
 
 
 @app.post("/api/login")
-def api_login(payload: LoginPayload):
+def api_login(payload: LoginPayload, request: Request):
     from config.settings import APP_USERNAME, APP_PASSWORD
+    if not APP_PASSWORD:
+        raise HTTPException(status_code=503, detail="APP_PASSWORD not configured on server")
+
+    # Brute-force protection: max 10 attempts per IP per 15 minutes
+    ip = request.client.host if request.client else "unknown"
+    now = time.time()
+    window = 15 * 60
+    with _LOGIN_LOCK:
+        attempts = [t for t in _LOGIN_ATTEMPTS.get(ip, []) if now - t < window]
+        if len(attempts) >= 10:
+            raise HTTPException(status_code=429, detail="Too many login attempts. Try again in 15 minutes.")
+        attempts.append(now)
+        _LOGIN_ATTEMPTS[ip] = attempts
+
     if payload.username == APP_USERNAME and payload.password == APP_PASSWORD:
         token = secrets.token_hex(32)
-        _SESSIONS.add(token)
+        _SESSIONS[token] = now + SESSION_TTL
         return {"ok": True, "token": token}
     raise HTTPException(status_code=401, detail="Invalid username or password")
 
@@ -90,7 +116,7 @@ def api_login(payload: LoginPayload):
 @app.post("/api/logout")
 def api_logout(request: Request):
     token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
-    _SESSIONS.discard(token)
+    _SESSIONS.pop(token, None)
     return {"ok": True}
 
 

@@ -351,7 +351,7 @@ def insert_upwork_jobs(jobs: list[dict]) -> int:
 def get_unscored_upwork_jobs() -> list[sqlite3.Row]:
     with get_connection() as conn:
         return conn.execute(
-            "SELECT * FROM upwork_jobs WHERE status = 'new' ORDER BY created_at ASC"
+            "SELECT * FROM upwork_jobs WHERE status IN ('new', 'error') ORDER BY created_at ASC"
         ).fetchall()
 
 

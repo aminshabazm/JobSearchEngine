@@ -2,8 +2,8 @@ import logging
 import logging.handlers
 import time
 
-from config.settings import LOG_DIR, LOG_LEVEL, SCORE_THRESHOLD
-from src.scorer import ScorerError, check_groq, score_job
+from config.settings import LOG_DIR, LOG_LEVEL, MAX_JOBS_PER_RUN, SCORE_THRESHOLD
+from src.scorer import RateLimitError, ScorerError, check_groq, score_job
 from src.storage import (
     get_unscored_upwork_jobs,
     initialize_db,
@@ -55,8 +55,12 @@ def run_upwork_pipeline(progress_cb=None) -> None:
     logger.info("Fetched %d Upwork jobs, %d are new", len(jobs), new_count)
 
     # Score
-    unscored = get_unscored_upwork_jobs()
-    logger.info("Scoring %d new Upwork jobs...", len(unscored))
+    all_unscored = get_unscored_upwork_jobs()
+    unscored = all_unscored[:MAX_JOBS_PER_RUN]
+    skipped_count = len(all_unscored) - len(unscored)
+    logger.info("Scoring %d new Upwork jobs (cap %d/run)%s...",
+                len(unscored), MAX_JOBS_PER_RUN,
+                f" — {skipped_count} queued for next run" if skipped_count else "")
 
     scored = errors = 0
     for idx, job in enumerate(unscored, 1):
@@ -71,6 +75,9 @@ def run_upwork_pipeline(progress_cb=None) -> None:
             logger.info("  [%d/10] %s", score, title)
             if score < SCORE_THRESHOLD:
                 update_upwork_job_status(jid, "skipped")
+        except RateLimitError as e:
+            logger.warning("  Rate limit hit — stopping Upwork scoring for today. %s", e)
+            break
         except ScorerError as e:
             update_upwork_job_status(jid, "error", error_message=str(e))
             errors += 1

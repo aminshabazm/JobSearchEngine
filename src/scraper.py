@@ -1,3 +1,4 @@
+import hashlib
 import html
 import logging
 import re
@@ -114,7 +115,7 @@ def _fetch_wwr(search_term: str) -> list[dict]:
                 else:
                     company_part, title_part = company_tag or "Unknown", title
 
-                job_id = f"wwr_{abs(hash(link))}"
+                job_id = f"wwr_{hashlib.md5(link.encode()).hexdigest()[:16]}"
                 results.append({
                     "job_id":        job_id,
                     "title":         title_part,
