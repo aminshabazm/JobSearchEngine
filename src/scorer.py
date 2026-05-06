@@ -218,7 +218,10 @@ def _call_gemini(prompt: str, temperature: float = 0.3) -> str:
     except ImportError:
         raise ScorerError("google-genai not installed.")
 
-    client = genai.Client(api_key=GEMINI_API_KEY)
+    client = genai.Client(
+        api_key=GEMINI_API_KEY,
+        http_options={"api_version": "v1"},
+    )
     response = client.models.generate_content(
         model=GEMINI_MODEL,
         contents="You are a helpful assistant. Always respond with valid JSON only.\n\n" + prompt,
