@@ -12,16 +12,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Frontend dependencies (cached layer)
-COPY frontend/package*.json ./frontend/
-RUN cd frontend && npm install --legacy-peer-deps
-
-# Build React app
-COPY frontend/ ./frontend/
-RUN cd frontend && npm run build
-
-# Copy rest of application
+# Copy entire application first
 COPY . .
+
+# Frontend dependencies + build (dist stays in place after build)
+RUN cd frontend && npm install --legacy-peer-deps && npm run build
 
 # Create runtime directories
 RUN mkdir -p data logs
