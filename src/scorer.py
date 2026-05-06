@@ -11,7 +11,7 @@ from config.settings import GEMINI_API_KEY, GROQ_API_KEYS, GROQ_MODEL, RESUME_TE
 logger = logging.getLogger("pipeline")
 
 DAILY_LIMIT = 100_000
-GEMINI_MODEL = "gemini-1.5-flash"
+GEMINI_MODEL = "gemini-2.0-flash"
 
 # ── Groq key pool state ───────────────────────────────────────────────────────
 _lock = threading.Lock()
@@ -213,25 +213,22 @@ def _call_gemini(prompt: str, temperature: float = 0.3) -> str:
     if not GEMINI_API_KEY:
         raise ScorerError("GEMINI_API_KEY not configured.")
     try:
-        import google.generativeai as genai
+        from google import genai
+        from google.genai import types
     except ImportError:
-        raise ScorerError("google-generativeai not installed.")
+        raise ScorerError("google-genai not installed.")
 
-    genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel(
-        GEMINI_MODEL,
-        generation_config=genai.GenerationConfig(
+    client = genai.Client(api_key=GEMINI_API_KEY)
+    response = client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents="You are a helpful assistant. Always respond with valid JSON only.\n\n" + prompt,
+        config=types.GenerateContentConfig(
             temperature=temperature,
             max_output_tokens=600,
             response_mime_type="application/json",
         ),
     )
-    response = model.generate_content(
-        [{"role": "user", "parts": [
-            "You are a helpful assistant. Always respond with valid JSON only.\n\n" + prompt
-        ]}]
-    )
-    if hasattr(response, "usage_metadata") and response.usage_metadata:
+    if response.usage_metadata:
         with _lock:
             _gemini_tokens += response.usage_metadata.total_token_count
     time.sleep(0.5)
