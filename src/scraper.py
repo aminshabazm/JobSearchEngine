@@ -58,7 +58,7 @@ def _fetch_remotive(search_term: str) -> list[dict]:
     try:
         resp = requests.get(
             f"{REMOTIVE_BASE_URL}/remote-jobs",
-            params={"category": "software-dev", "search": search_term, "limit": 50},
+            params={"category": "software-dev", "search": search_term, "limit": 100},
             timeout=REMOTIVE_TIMEOUT,
         )
         if resp.status_code == 429:
@@ -66,7 +66,7 @@ def _fetch_remotive(search_term: str) -> list[dict]:
             time.sleep(30)
             resp = requests.get(
                 f"{REMOTIVE_BASE_URL}/remote-jobs",
-                params={"category": "software-dev", "search": search_term, "limit": 50},
+                params={"category": "software-dev", "search": search_term, "limit": 100},
                 timeout=REMOTIVE_TIMEOUT,
             )
         if resp.status_code != 200:
