@@ -135,6 +135,153 @@ def _fetch_wwr(search_term: str) -> list[dict]:
     return results
 
 
+# ─── RemoteOK ────────────────────────────────────────────────────────────────
+
+_REMOTEOK_TAG_MAP = [
+    ("spring", "spring"),
+    ("ai",     "ai"),
+    ("agent",  "ai"),
+    ("java",   "java"),
+    ("python", "python"),
+]
+
+def _search_to_remoteok_tag(search_term: str) -> str:
+    term = search_term.lower()
+    for kw, tag in _REMOTEOK_TAG_MAP:
+        if kw in term:
+            return tag
+    return "backend"
+
+
+def _fetch_remoteok(search_term: str) -> list[dict]:
+    tag = _search_to_remoteok_tag(search_term)
+    try:
+        resp = requests.get(
+            "https://remoteok.com/api",
+            params={"tag": tag},
+            headers={"User-Agent": "Mozilla/5.0 (compatible; JobSearchBot/1.0)"},
+            timeout=20,
+        )
+        if resp.status_code == 429:
+            logger.warning("RemoteOK rate-limited for tag '%s'", tag)
+            return []
+        if resp.status_code != 200:
+            logger.warning("RemoteOK returned %d for tag '%s'", resp.status_code, tag)
+            return []
+        data = resp.json()
+        # First item is metadata (has 'legal' key, not a job)
+        jobs_raw = [item for item in data if isinstance(item, dict) and "position" in item]
+        kw = search_term.lower().split()
+        results = []
+        for raw in jobs_raw:
+            haystack = f"{raw.get('position','')} {' '.join(raw.get('tags') or [])} {raw.get('description','')}".lower()
+            if not any(k in haystack for k in kw):
+                continue
+            results.append({
+                "job_id":        f"remoteok_{raw['id']}",
+                "title":         raw.get("position") or "",
+                "company":       raw.get("company") or "",
+                "location":      raw.get("location") or "Remote",
+                "remote_model":  "Remote",
+                "salary_snippet": "",
+                "job_type":      "Full Time",
+                "posted_at":     raw.get("date") or "",
+                "description":   _strip_html(raw.get("description") or "")[:3000],
+                "apply_url":     raw.get("url") or "",
+                "job_url":       raw.get("url") or "",
+                "search_query":  search_term,
+            })
+        return results
+    except Exception as e:
+        logger.warning("RemoteOK error for '%s': %s", search_term, e)
+        return []
+
+
+# ─── Himalayas ────────────────────────────────────────────────────────────────
+
+def _fetch_himalayas(search_term: str) -> list[dict]:
+    try:
+        resp = requests.get(
+            "https://himalayas.app/jobs/api",
+            params={"q": search_term, "limit": 100},
+            headers={"User-Agent": "Mozilla/5.0 (compatible; JobSearchBot/1.0)"},
+            timeout=20,
+        )
+        if resp.status_code == 429:
+            logger.warning("Himalayas rate-limited for '%s'", search_term)
+            return []
+        if resp.status_code != 200:
+            logger.warning("Himalayas returned %d for '%s'", resp.status_code, search_term)
+            return []
+        jobs_raw = resp.json().get("jobs", [])
+        results = []
+        for raw in jobs_raw:
+            company = raw.get("company") or {}
+            company_name = company.get("name") if isinstance(company, dict) else str(company)
+            job_url = raw.get("applicationUrl") or raw.get("url") or ""
+            results.append({
+                "job_id":        f"himalayas_{raw['id']}",
+                "title":         raw.get("title") or "",
+                "company":       company_name or "",
+                "location":      raw.get("location") or "Remote",
+                "remote_model":  "Remote",
+                "salary_snippet": "",
+                "job_type":      raw.get("jobType") or "Full Time",
+                "posted_at":     raw.get("createdAt") or "",
+                "description":   _strip_html(raw.get("description") or "")[:3000],
+                "apply_url":     job_url,
+                "job_url":       job_url,
+                "search_query":  search_term,
+            })
+        return results
+    except Exception as e:
+        logger.warning("Himalayas error for '%s': %s", search_term, e)
+        return []
+
+
+# ─── Jobicy ───────────────────────────────────────────────────────────────────
+
+def _fetch_jobicy(search_term: str) -> list[dict]:
+    tag = search_term.lower().replace(" ", "-")
+    try:
+        resp = requests.get(
+            "https://jobicy.com/api/v2/remote-jobs",
+            params={"count": 50, "tag": tag},
+            headers={"User-Agent": "Mozilla/5.0 (compatible; JobSearchBot/1.0)"},
+            timeout=20,
+        )
+        if resp.status_code == 429:
+            logger.warning("Jobicy rate-limited for '%s', skipping", search_term)
+            return []
+        if resp.status_code != 200:
+            logger.warning("Jobicy returned %d for '%s'", resp.status_code, search_term)
+            return []
+        jobs_raw = resp.json().get("jobs", [])
+        results = []
+        for raw in jobs_raw:
+            jtype = raw.get("jobType") or ""
+            if isinstance(jtype, list):
+                jtype = jtype[0] if jtype else ""
+            results.append({
+                "job_id":        f"jobicy_{raw['id']}",
+                "title":         raw.get("jobTitle") or "",
+                "company":       raw.get("companyName") or "",
+                "location":      raw.get("jobGeo") or "Remote",
+                "remote_model":  "Remote",
+                "salary_snippet": "",
+                "job_type":      jtype,
+                "posted_at":     raw.get("pubDate") or "",
+                "description":   _strip_html(raw.get("jobDescription") or raw.get("jobExcerpt") or "")[:3000],
+                "apply_url":     raw.get("url") or "",
+                "job_url":       raw.get("url") or "",
+                "search_query":  search_term,
+            })
+        return results
+    except Exception as e:
+        logger.warning("Jobicy error for '%s': %s", search_term, e)
+        return []
+
+
 # ─── JSearch / LinkedIn (RapidAPI) ───────────────────────────────────────────
 
 def _fetch_jsearch(search_term: str, location: str) -> list[dict]:
@@ -215,6 +362,24 @@ def fetch_all_queries() -> list[dict]:
             for job in _fetch_wwr(search_term):
                 all_jobs.setdefault(job["job_id"], job)
             time.sleep(0.5)
+
+        if portals.get("remoteok", True):
+            logger.info("[RemoteOK] '%s'", search_term)
+            for job in _fetch_remoteok(search_term):
+                all_jobs.setdefault(job["job_id"], job)
+            time.sleep(1)
+
+        if portals.get("himalayas", True):
+            logger.info("[Himalayas] '%s'", search_term)
+            for job in _fetch_himalayas(search_term):
+                all_jobs.setdefault(job["job_id"], job)
+            time.sleep(0.5)
+
+        if portals.get("jobicy", True):
+            logger.info("[Jobicy] '%s'", search_term)
+            for job in _fetch_jobicy(search_term):
+                all_jobs.setdefault(job["job_id"], job)
+            time.sleep(1)
 
         if portals.get("jsearch", False) and JSEARCH_API_KEY:
             logger.info("[JSearch/LinkedIn] '%s' in %s", search_term, location)

@@ -234,9 +234,12 @@ def get_stats() -> dict:
 
 def _seed_portal_settings() -> None:
     portals = [
-        ("remotive", "Remotive",             1, 0),
-        ("wwr",      "We Work Remotely",     1, 0),
-        ("jsearch",  "LinkedIn (JSearch)",   0, 1),
+        ("remotive",  "Remotive",            1, 0),
+        ("wwr",       "We Work Remotely",    1, 0),
+        ("remoteok",  "RemoteOK",            1, 0),
+        ("himalayas", "Himalayas",           1, 0),
+        ("jobicy",    "Jobicy",              1, 0),
+        ("jsearch",   "LinkedIn (JSearch)",  0, 1),
     ]
     with get_connection() as conn:
         for name, label, enabled, req_key in portals:
