@@ -67,21 +67,27 @@ def run_pipeline(progress_cb=None, key_index: int | None = None) -> None:
     if not validate_smtp_config():
         logger.warning("Email sending will be unavailable this run")
 
-    # --- Fetch jobs ---
-    logger.info("Fetching remote jobs from Indeed...")
-    try:
-        jobs = fetch_all_queries()
-    except ScraperError as e:
-        logger.error("Fatal scraper error: %s", e)
-        return
-
-    stats["jobs_fetched"] = len(jobs)
-    new_count = insert_jobs(jobs)
-    stats["jobs_new"] = new_count
-    logger.info("Fetched %d jobs, %d are new", len(jobs), new_count)
+    # --- Fetch only when there are no unscored jobs already waiting ---
+    all_unscored = get_unscored_jobs()
+    if all_unscored:
+        logger.info(
+            "Found %d unscored jobs in DB — skipping fetch, scoring directly",
+            len(all_unscored),
+        )
+    else:
+        logger.info("No unscored jobs — fetching new jobs from all sources...")
+        try:
+            jobs = fetch_all_queries()
+        except ScraperError as e:
+            logger.error("Fatal scraper error: %s", e)
+            return
+        stats["jobs_fetched"] = len(jobs)
+        new_count = insert_jobs(jobs)
+        stats["jobs_new"] = new_count
+        logger.info("Fetched %d jobs, %d are new", len(jobs), new_count)
+        all_unscored = get_unscored_jobs()
 
     # --- Score & draft ---
-    all_unscored = get_unscored_jobs()
     if key_index is not None:
         # Manual mode: score everything queued (user controls the key budget)
         unscored = all_unscored

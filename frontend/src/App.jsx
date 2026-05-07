@@ -161,8 +161,8 @@ function AppInner({ onLogout }) {
       if (data.ok) {
         setPipelineRunning(true);
         setPipelineMsg(keyIndex
-          ? `Scoring with Key ${keyIndex} — fetching jobs...`
-          : "Fetching jobs & scoring with Groq AI (auto)...");
+          ? `Key ${keyIndex} selected — checking for unscored jobs...`
+          : "Checking for unscored jobs...");
         startPolling();
       } else {
         setPipelineMsg(data.message);
