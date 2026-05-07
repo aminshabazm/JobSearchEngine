@@ -132,13 +132,13 @@ _pipeline_lock = threading.Lock()
 _pipeline_state = {"running": False, "started_at": None, "last_result": None, "progress": None}
 
 
-def _run_pipeline_task():
+def _run_pipeline_task(key_index: int | None = None):
     try:
         from main import run_pipeline
         def _progress_cb(current, total, label):
             with _pipeline_lock:
                 _pipeline_state["progress"] = {"current": current, "total": total, "label": label}
-        run_pipeline(progress_cb=_progress_cb)
+        run_pipeline(progress_cb=_progress_cb, key_index=key_index)
         with _pipeline_lock:
             _pipeline_state["last_result"] = "success"
     except Exception as e:
@@ -338,16 +338,22 @@ def api_toggle_query(query_id: int, payload: TogglePayload):
 # Main pipeline trigger
 # ---------------------------------------------------------------------------
 
+class RunRequest(BaseModel):
+    key_index: int | None = None  # 1-based key number; None = auto-rotate
+
+
 @app.post("/api/run")
-def api_run_pipeline(background_tasks: BackgroundTasks):
+def api_run_pipeline(background_tasks: BackgroundTasks, payload: RunRequest = None):
+    payload = payload or RunRequest()
     with _pipeline_lock:
         if _pipeline_state["running"]:
             return {"ok": False, "message": "Pipeline is already running"}
         _pipeline_state["running"] = True
         _pipeline_state["started_at"] = datetime.now(timezone.utc).isoformat()
         _pipeline_state["last_result"] = None
-    background_tasks.add_task(_run_pipeline_task)
-    return {"ok": True, "message": "Pipeline started"}
+        _pipeline_state["key_index"] = payload.key_index
+    background_tasks.add_task(_run_pipeline_task, payload.key_index)
+    return {"ok": True, "message": "Pipeline started", "key_index": payload.key_index}
 
 
 @app.get("/api/run/status")
@@ -358,6 +364,7 @@ def api_run_status():
             "started_at": _pipeline_state["started_at"],
             "last_result": _pipeline_state["last_result"],
             "progress": _pipeline_state["progress"],
+            "key_index": _pipeline_state.get("key_index"),
         }
 
 

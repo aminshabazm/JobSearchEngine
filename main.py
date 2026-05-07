@@ -5,7 +5,7 @@ from datetime import datetime
 
 from config.settings import LOG_DIR, LOG_LEVEL, MAX_JOBS_PER_RUN, SCORE_THRESHOLD
 from src.mailer import validate_smtp_config
-from src.scorer import RateLimitError, ScorerError, check_groq, draft_email, score_job
+from src.scorer import RateLimitError, ScorerError, check_groq, draft_email, score_job, set_forced_key
 from src.scraper import ScraperError, fetch_all_queries
 from src.storage import (
     get_unscored_jobs,
@@ -36,13 +36,22 @@ def setup_logging() -> logging.Logger:
     return logger
 
 
-def run_pipeline(progress_cb=None) -> None:
+def run_pipeline(progress_cb=None, key_index: int | None = None) -> None:
+    """
+    key_index: 1-based key number chosen by the user.
+               None = auto-rotate through all keys (default behaviour).
+    """
     logger = setup_logging()
     start = time.time()
     stats = {"jobs_fetched": 0, "jobs_new": 0, "jobs_scored": 0, "jobs_drafted": 0, "errors": 0, "duration_sec": 0}
 
-    logger.info("=" * 60)
-    logger.info("Job Search Pipeline started")
+    if key_index is not None:
+        set_forced_key(key_index - 1)  # convert 1-based UI index to 0-based
+        logger.info("=" * 60)
+        logger.info("Job Search Pipeline started — manual mode, Key %d only", key_index)
+    else:
+        logger.info("=" * 60)
+        logger.info("Job Search Pipeline started")
 
     initialize_db()
 
@@ -73,11 +82,16 @@ def run_pipeline(progress_cb=None) -> None:
 
     # --- Score & draft ---
     all_unscored = get_unscored_jobs()
-    unscored = all_unscored[:MAX_JOBS_PER_RUN]
-    skipped_count = len(all_unscored) - len(unscored)
-    logger.info("Scoring %d new jobs (cap %d/run)%s...",
-                len(unscored), MAX_JOBS_PER_RUN,
-                f" — {skipped_count} queued for next run" if skipped_count else "")
+    if key_index is not None:
+        # Manual mode: score everything queued (user controls the key budget)
+        unscored = all_unscored
+        logger.info("Scoring all %d queued jobs with Key %d...", len(unscored), key_index)
+    else:
+        unscored = all_unscored[:MAX_JOBS_PER_RUN]
+        skipped_count = len(all_unscored) - len(unscored)
+        logger.info("Scoring %d new jobs (cap %d/run)%s...",
+                    len(unscored), MAX_JOBS_PER_RUN,
+                    f" — {skipped_count} queued for next run" if skipped_count else "")
 
     for idx, job in enumerate(unscored, 1):
         jid = job["job_id"]
@@ -113,6 +127,9 @@ def run_pipeline(progress_cb=None) -> None:
 
     stats["duration_sec"] = round(time.time() - start, 1)
     log_run(stats)
+
+    if key_index is not None:
+        set_forced_key(None)  # restore auto-rotation
 
     logger.info("-" * 60)
     logger.info(

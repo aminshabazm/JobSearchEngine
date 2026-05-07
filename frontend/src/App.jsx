@@ -92,6 +92,8 @@ function AppInner({ onLogout }) {
   const [loading, setLoading] = useState(true);
   const [pipelineRunning, setPipelineRunning] = useState(false);
   const [pipelineMsg, setPipelineMsg] = useState(null);
+  const [activeKeyIndex, setActiveKeyIndex] = useState(null);
+  const [tokenStats, setTokenStats] = useState(null);
   const [view, setView] = useState("home");
   const [confirmClear, setConfirmClear] = useState(false);
   const [tooltip, setTooltip] = useState(null);
@@ -114,6 +116,13 @@ function AppInner({ onLogout }) {
 
   useEffect(() => { fetchStats(); fetchJobs(); }, [statusFilter, minScore]);
 
+  useEffect(() => {
+    const load = () => apiFetch("/api/token-usage").then((r) => r.json()).then(setTokenStats).catch(() => {});
+    load();
+    const id = setInterval(load, 8000);
+    return () => clearInterval(id);
+  }, []);
+
   const startPolling = () => {
     if (pollRef.current) return;
     pollRef.current = setInterval(async () => {
@@ -127,6 +136,7 @@ function AppInner({ onLogout }) {
         } else {
           clearInterval(pollRef.current); pollRef.current = null;
           setPipelineRunning(false);
+          setActiveKeyIndex(null);
           setPipelineMsg(data.last_result === "success" ? "Pipeline finished — jobs updated!" : data.last_result ?? "Pipeline finished");
           fetchStats(); fetchJobs();
           setTimeout(() => setPipelineMsg(null), 5000);
@@ -137,15 +147,31 @@ function AppInner({ onLogout }) {
     }, 3000);
   };
 
-  const handleRunPipeline = async () => {
+  const handleRunWithKey = async (keyIndex) => {
     if (pipelineRunning) return;
     setPipelineMsg(null);
+    setActiveKeyIndex(keyIndex);
     try {
-      const res = await apiFetch("/api/run", { method: "POST" });
+      const res = await apiFetch("/api/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key_index: keyIndex }),
+      });
       const data = await res.json();
-      if (data.ok) { setPipelineRunning(true); setPipelineMsg("Fetching jobs & scoring with Groq AI..."); startPolling(); }
-      else setPipelineMsg(data.message);
-    } catch { setPipelineMsg("Could not start pipeline — is the server running?"); }
+      if (data.ok) {
+        setPipelineRunning(true);
+        setPipelineMsg(keyIndex
+          ? `Scoring with Key ${keyIndex} — fetching jobs...`
+          : "Fetching jobs & scoring with Groq AI (auto)...");
+        startPolling();
+      } else {
+        setPipelineMsg(data.message);
+        setActiveKeyIndex(null);
+      }
+    } catch {
+      setPipelineMsg("Could not start pipeline — is the server running?");
+      setActiveKeyIndex(null);
+    }
   };
 
   const handleClearJobs = async () => {
@@ -197,7 +223,7 @@ function AppInner({ onLogout }) {
           {/* Token meter */}
           <TokenMeter />
 
-          {/* Clear + Run buttons (only relevant for main pipeline views) */}
+          {/* Clear button */}
           {view !== "upwork" && (
             confirmClear ? (
               <div style={st.confirmRow}>
@@ -206,18 +232,59 @@ function AppInner({ onLogout }) {
                 <button onClick={() => setConfirmClear(false)} style={st.confirmNo}>Cancel</button>
               </div>
             ) : (
-              <button onClick={() => setConfirmClear(true)} style={st.clearBtn} title="Clear all jobs">🗑 Clear All</button>
+              <button onClick={() => setConfirmClear(true)} style={st.clearBtn} title="Clear all jobs">🗑</button>
             )
           )}
 
+          {/* Key score buttons — one per Groq key + Auto */}
           {view !== "upwork" && (
-            <button
-              onClick={handleRunPipeline}
-              disabled={pipelineRunning}
-              style={{ ...st.runBtn, opacity: pipelineRunning ? 0.7 : 1, cursor: pipelineRunning ? "not-allowed" : "pointer" }}
-            >
-              {pipelineRunning ? <><span style={st.spinner} /> Running...</> : "▶ Run Pipeline"}
-            </button>
+            <div style={st.keyBtnRow}>
+              {/* Auto button */}
+              <button
+                onClick={() => handleRunWithKey(null)}
+                disabled={pipelineRunning}
+                title="Auto-rotate through all available keys"
+                style={{
+                  ...st.keyBtn,
+                  borderColor: pipelineRunning && activeKeyIndex === null ? "#6366f1" : "#334155",
+                  color: pipelineRunning && activeKeyIndex === null ? "#818cf8" : "#94a3b8",
+                  background: pipelineRunning && activeKeyIndex === null ? "#6366f118" : "transparent",
+                  opacity: pipelineRunning ? 0.6 : 1,
+                  cursor: pipelineRunning ? "not-allowed" : "pointer",
+                  fontWeight: 600,
+                  minWidth: 48,
+                }}
+              >
+                {pipelineRunning && activeKeyIndex === null ? <><span style={st.spinner} /> Auto</> : "▶ Auto"}
+              </button>
+
+              {/* Per-key buttons */}
+              {(tokenStats?.keys ?? []).map((k) => {
+                const isRunningThisKey = pipelineRunning && activeKeyIndex === k.key;
+                const dotColor = k.exhausted ? "#ef4444" : k.pct > 70 ? "#f59e0b" : "#22c55e";
+                return (
+                  <button
+                    key={k.key}
+                    onClick={() => handleRunWithKey(k.key)}
+                    disabled={pipelineRunning}
+                    title={`Score with Key ${k.key} — ${(k.tokens_used / 1000).toFixed(1)}k / 100k used${k.exhausted ? " (exhausted)" : ""}`}
+                    style={{
+                      ...st.keyBtn,
+                      borderColor: isRunningThisKey ? dotColor : k.exhausted ? "#3f2020" : "#1e293b",
+                      color: isRunningThisKey ? dotColor : k.exhausted ? "#7f3030" : "#94a3b8",
+                      background: isRunningThisKey ? `${dotColor}18` : "transparent",
+                      opacity: pipelineRunning ? 0.6 : 1,
+                      cursor: pipelineRunning ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {isRunningThisKey && <span style={st.spinner} />}
+                    K{k.key}
+                    <span style={{ ...st.dot, background: dotColor }} />
+                    <span style={{ fontSize: 9, color: "#475569" }}>{(k.tokens_used / 1000).toFixed(0)}k</span>
+                  </button>
+                );
+              })}
+            </div>
           )}
 
           {/* User / Logout */}
@@ -357,8 +424,10 @@ const st = {
   confirmYes: { background: "#7f1d1d", color: "#fca5a5", border: "1px solid #ef4444", borderRadius: 6, padding: "5px 12px", fontSize: 12, cursor: "pointer" },
   confirmNo:  { background: "transparent", color: "#94a3b8", border: "1px solid #334155", borderRadius: 6, padding: "5px 12px", fontSize: 12, cursor: "pointer" },
   clearBtn: { background: "transparent", color: "#94a3b8", border: "1px solid #334155", borderRadius: 8, padding: "7px 14px", fontSize: 13, cursor: "pointer" },
-  runBtn: { display: "flex", alignItems: "center", gap: 6, background: "#4f46e5", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" },
-  spinner: { display: "inline-block", width: 12, height: 12, border: "2px solid #ffffff44", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.7s linear infinite" },
+  spinner: { display: "inline-block", width: 10, height: 10, border: "2px solid #ffffff22", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.7s linear infinite", flexShrink: 0 },
+  keyBtnRow: { display: "flex", alignItems: "center", gap: 4, flexWrap: "nowrap" },
+  keyBtn: { display: "flex", alignItems: "center", gap: 4, border: "1px solid", borderRadius: 6, padding: "5px 8px", fontSize: 12, fontWeight: 500, whiteSpace: "nowrap", transition: "all 0.15s" },
+  dot: { width: 6, height: 6, borderRadius: "50%", flexShrink: 0 },
   pipelineMsg: { marginTop: 8, padding: "6px 12px", borderRadius: 6, border: "1px solid", fontSize: 13 },
 
   sidebar: {

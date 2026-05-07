@@ -15,9 +15,17 @@ DAILY_LIMIT = 100_000
 # ── Key pool state ────────────────────────────────────────────────────────────
 _lock = threading.Lock()
 _current_idx = 0
+_forced_key_idx: int | None = None  # None = auto-rotate; set by set_forced_key()
 _token_counts: dict[int, int] = {}
 _exhausted: dict[int, bool] = {}
 _db_loaded = False
+
+
+def set_forced_key(idx: int | None) -> None:
+    """Pin scoring to a specific 0-based key index. Pass None to restore auto-rotation."""
+    global _forced_key_idx
+    with _lock:
+        _forced_key_idx = idx
 
 
 def _ensure_db_loaded() -> None:
@@ -133,6 +141,30 @@ class RateLimitError(ScorerError):
 
 # ── Core Groq call with key rotation ─────────────────────────────────────────
 
+def _single_groq_request(idx: int, keys: list, prompt: str, temperature: float) -> str:
+    response = Groq(api_key=keys[idx]).chat.completions.create(
+        model=GROQ_MODEL,
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant. Always respond with valid JSON only."},
+            {"role": "user", "content": prompt},
+        ],
+        response_format={"type": "json_object"},
+        temperature=temperature,
+        max_tokens=600,
+    )
+    if response.usage:
+        delta = response.usage.total_tokens
+        with _lock:
+            _token_counts[idx] = _token_counts.get(idx, 0) + delta
+        try:
+            from src.storage import upsert_token_usage
+            upsert_token_usage(idx, delta)
+        except Exception:
+            pass
+    time.sleep(1.5)
+    return response.choices[0].message.content
+
+
 def _call_groq(prompt: str, temperature: float = 0.3) -> str:
     global _current_idx
     _ensure_db_loaded()
@@ -140,6 +172,24 @@ def _call_groq(prompt: str, temperature: float = 0.3) -> str:
     if not keys:
         raise ScorerError("No GROQ_API_KEY configured.")
 
+    with _lock:
+        forced = _forced_key_idx
+
+    # ── Manual key mode (user picked a specific key) ──────────────────────────
+    if forced is not None:
+        if forced >= len(keys):
+            raise ScorerError(f"Key {forced + 1} is not configured (only {len(keys)} keys available).")
+        try:
+            return _single_groq_request(forced, keys, prompt, temperature)
+        except Exception as e:
+            msg = str(e)
+            if "429" in msg and ("tokens per day" in msg or "TPD" in msg):
+                with _lock:
+                    _exhausted[forced] = True
+                raise RateLimitError(f"Key {forced + 1} has reached its 100k/day token limit.")
+            raise
+
+    # ── Auto-rotation mode ────────────────────────────────────────────────────
     for _ in range(len(keys)):
         with _lock:
             idx = _current_idx
@@ -148,27 +198,7 @@ def _call_groq(prompt: str, temperature: float = 0.3) -> str:
             break
 
         try:
-            response = Groq(api_key=keys[idx]).chat.completions.create(
-                model=GROQ_MODEL,
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant. Always respond with valid JSON only."},
-                    {"role": "user", "content": prompt},
-                ],
-                response_format={"type": "json_object"},
-                temperature=temperature,
-                max_tokens=600,
-            )
-            if response.usage:
-                delta = response.usage.total_tokens
-                with _lock:
-                    _token_counts[idx] = _token_counts.get(idx, 0) + delta
-                try:
-                    from src.storage import upsert_token_usage
-                    upsert_token_usage(idx, delta)
-                except Exception:
-                    pass
-            time.sleep(1.5)
-            return response.choices[0].message.content
+            return _single_groq_request(idx, keys, prompt, temperature)
 
         except Exception as e:
             msg = str(e)
