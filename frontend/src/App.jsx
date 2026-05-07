@@ -270,8 +270,8 @@ function AppInner({ onLogout }) {
                     title={`Score with Key ${k.key} — ${(k.tokens_used / 1000).toFixed(1)}k / 100k used${k.exhausted ? " (exhausted)" : ""}`}
                     style={{
                       ...st.keyBtn,
-                      borderColor: isRunningThisKey ? dotColor : k.exhausted ? "#3f2020" : "#1e293b",
-                      color: isRunningThisKey ? dotColor : k.exhausted ? "#7f3030" : "#94a3b8",
+                      borderColor: isRunningThisKey ? dotColor : k.exhausted ? "#7f2020" : "#334155",
+                      color: isRunningThisKey ? dotColor : k.exhausted ? "#f87171" : "#94a3b8",
                       background: isRunningThisKey ? `${dotColor}18` : "transparent",
                       opacity: pipelineRunning ? 0.6 : 1,
                       cursor: pipelineRunning ? "not-allowed" : "pointer",
@@ -425,9 +425,9 @@ const st = {
   confirmNo:  { background: "transparent", color: "#94a3b8", border: "1px solid #334155", borderRadius: 6, padding: "5px 12px", fontSize: 12, cursor: "pointer" },
   clearBtn: { background: "transparent", color: "#94a3b8", border: "1px solid #334155", borderRadius: 8, padding: "7px 14px", fontSize: 13, cursor: "pointer" },
   spinner: { display: "inline-block", width: 10, height: 10, border: "2px solid #ffffff22", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.7s linear infinite", flexShrink: 0 },
-  keyBtnRow: { display: "flex", alignItems: "center", gap: 4, flexWrap: "nowrap" },
-  keyBtn: { display: "flex", alignItems: "center", gap: 4, border: "1px solid", borderRadius: 6, padding: "5px 8px", fontSize: 12, fontWeight: 500, whiteSpace: "nowrap", transition: "all 0.15s" },
-  dot: { width: 6, height: 6, borderRadius: "50%", flexShrink: 0 },
+  keyBtnRow: { display: "flex", alignItems: "center", gap: 6, flexWrap: "nowrap" },
+  keyBtn: { display: "flex", alignItems: "center", gap: 5, border: "1px solid", borderRadius: 7, padding: "7px 13px", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", transition: "all 0.15s" },
+  dot: { width: 7, height: 7, borderRadius: "50%", flexShrink: 0 },
   pipelineMsg: { marginTop: 8, padding: "6px 12px", borderRadius: 6, border: "1px solid", fontSize: 13 },
 
   sidebar: {
